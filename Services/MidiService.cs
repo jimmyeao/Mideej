@@ -158,7 +158,12 @@ public class MidiService : IMidiService, IDisposable
                             Controller = (int)ccEvent.Controller,
                             Value = ccEvent.ControllerValue
                         };
-                        ControlChangeReceived?.Invoke(this, args);
+
+                        // Dispatch to UI thread
+                        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+                        {
+                            ControlChangeReceived?.Invoke(this, args);
+                        });
                     }
                     break;
 
@@ -174,7 +179,12 @@ public class MidiService : IMidiService, IDisposable
                                 NoteNumber = noteOnEvent.NoteNumber,
                                 Velocity = noteOnEvent.Velocity
                             };
-                            NoteOnReceived?.Invoke(this, args);
+
+                            // Dispatch to UI thread
+                            System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+                            {
+                                NoteOnReceived?.Invoke(this, args);
+                            });
                         }
                         else
                         {
@@ -184,7 +194,12 @@ public class MidiService : IMidiService, IDisposable
                                 NoteNumber = noteOnEvent.NoteNumber,
                                 Velocity = 0
                             };
-                            NoteOffReceived?.Invoke(this, args);
+
+                            // Dispatch to UI thread
+                            System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+                            {
+                                NoteOffReceived?.Invoke(this, args);
+                            });
                         }
                     }
                     break;
@@ -198,7 +213,12 @@ public class MidiService : IMidiService, IDisposable
                             NoteNumber = noteOffEvent.NoteNumber,
                             Velocity = noteOffEvent.Velocity
                         };
-                        NoteOffReceived?.Invoke(this, args);
+
+                        // Dispatch to UI thread
+                        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+                        {
+                            NoteOffReceived?.Invoke(this, args);
+                        });
                     }
                     break;
             }

@@ -64,15 +64,23 @@ The application follows a layered architecture:
 4. **Effects Processing Layer**: Applies audio filters and effects
 5. **UI Layer**: WPF controls displaying channels, VU meters, and configuration
 
-### Core Components (To Be Implemented)
+### Core Components
 
-- **ChannelControl**: UI component representing a single audio channel with volume, mute, solo controls
-- **MidiDeviceManager**: Handles MIDI device enumeration, connection, and message routing
-- **MidiMapper**: Maps MIDI CC numbers to audio session controls and functions
-- **SessionManager**: Manages Windows audio sessions (applications, devices, system audio)
-- **AudioEffectProcessor**: Applies filter effects to audio streams
-- **VUMeterRenderer**: Real-time audio level visualization using SkiaSharp
-- **ConfigurationManager**: Persists MIDI mappings, profiles, and user preferences
+**✅ Implemented:**
+- **ChannelControl**: Custom UserControl with volume slider, VU meter, mute/solo buttons (C:\Users\jimmy\source\repos\Mideej\Controls\ChannelControl.xaml)
+- **MidiService**: Complete MIDI device enumeration, connection, and message routing (C:\Users\jimmy\source\repos\Mideej\Services\MidiService.cs)
+- **MainWindowViewModel**: Full MIDI mapping logic with CC and Note support (C:\Users\jimmy\source\repos\Mideej\ViewModels\MainWindowViewModel.cs)
+- **AudioSessionManager**: Windows audio session management with volume/mute control (C:\Users\jimmy\source\repos\Mideej\Services\AudioSessionManager.cs)
+- **VuMeter**: SkiaSharp-based real-time audio level visualization (C:\Users\jimmy\source\repos\Mideej\Controls\VuMeter.cs)
+- **ConfigurationService**: JSON-based persistence for settings and MIDI mappings (C:\Users\jimmy\source\repos\Mideej\Services\ConfigurationService.cs)
+
+**🚧 Partially Implemented:**
+- **AudioEffectProcessor**: Filter models exist but DSP processing not yet implemented
+
+**❌ Not Yet Implemented:**
+- **Audio Session Assignment UI**: No dialog/interface to assign audio applications to channels
+- **Profile Switcher UI**: Profile management exists in backend but no UI
+- **Filter DSP Processing**: Need to implement actual audio filtering with NAudio
 
 ### Project Structure
 
@@ -178,3 +186,143 @@ This project is based on [DeejNG](https://github.com/jimmyeao/DeejNG). Key conce
 - VU meter rendering approach
 - Profile and configuration architecture
 - Channel control UI patterns
+
+## Implementation Status (Current)
+
+### ✅ Completed Features
+
+**MIDI Control System:**
+- MIDI device enumeration and connection
+- MIDI CC message handling for continuous controls (faders, knobs)
+- MIDI Note On/Off handling for buttons (mute/solo)
+- "Learn" mode for mapping MIDI controls to channels
+- Mapping persistence (save/load from JSON configuration)
+- Multi-channel support (8 channels by default, expandable)
+- Value scaling and inversion support for mappings
+
+**Audio Session Management:**
+- Windows audio session enumeration via NAudio
+- Per-session volume control
+- Per-session mute control
+- Real-time peak level monitoring (30ms refresh rate)
+- VU meter visualization with color gradient (green → yellow → red)
+
+**UI:**
+- Modern dark theme with rounded borders
+- Custom borderless window with drag/resize
+- Channel strips with VU meters and volume sliders
+- Mute/Solo buttons with visual feedback
+- MIDI device selection dropdown
+- Status bar with connection indicator
+- Mapping mode visual feedback
+
+**Configuration:**
+- JSON-based settings persistence (stored in AppData/Mideej)
+- MIDI mapping storage
+- Channel configuration storage
+- Profile support (backend complete)
+- Auto-save on exit
+
+### 🚧 Partially Complete
+
+**Solo Logic:**
+- Solo button implemented in UI
+- Backend logic for exclusive solo complete
+- **Missing**: Currently only works when audio sessions are assigned to channels
+
+**Audio Effects:**
+- Filter models defined (FilterConfiguration)
+- UI toggle for filters exists
+- **Missing**: Actual DSP processing not implemented
+
+### ❌ Outstanding Tasks
+
+**Critical (Required for Basic Functionality):**
+
+1. **Audio Session Assignment UI** (PRIORITY 1)
+   - Need dialog to show available audio applications
+   - Allow user to assign applications to channels
+   - Currently channels work but have no audio sessions assigned
+   - Without this, MIDI controls don't affect any audio
+
+2. **Apply Volume Changes to Audio Sessions** (PRIORITY 1)
+   - UI sliders change ChannelViewModel.Volume
+   - MIDI controls change ChannelViewModel.Volume
+   - **Current**: This triggers ApplyVolumeToSessions()
+   - **Status**: Working but requires sessions to be assigned first
+
+3. **Test with Physical MIDI Device** (PRIORITY 2)
+   - App is untested with real MIDI hardware
+   - Need to verify CC message handling
+   - Verify mapping mode works correctly
+
+**Nice-to-Have Enhancements:**
+
+4. **Profile Switcher UI**
+   - Add combobox or menu for profile selection
+   - "Save Current as Profile" button
+   - Delete profile functionality
+
+5. **Filter Effects DSP**
+   - Implement BiQuadFilter or similar with NAudio
+   - Wire up FilterConfiguration to actual audio processing
+   - Add filter type selector (LowPass/HighPass/BandPass)
+
+6. **Session Icons**
+   - Extract and display application icons in channel strips
+   - Show which apps are assigned to each channel
+
+7. **Visual Feedback Improvements**
+   - Animate channel when MIDI message received
+   - Flash border or highlight on MIDI input
+   - Better mapping mode indicator (maybe overlay)
+
+8. **Multi-select Control Types in Mapping**
+   - Currently maps to Volume by default
+   - Add UI to choose: Volume, Pan, Filter Cutoff, Filter Resonance
+   - Or automatically detect (fader=volume, knob=filter)
+
+## How to Test MIDI Functionality
+
+1. **Connect MIDI Device**:
+   ```
+   - Launch app: dotnet run
+   - Select MIDI device from dropdown
+   - Click "Connect"
+   - Status should show "MIDI Connected"
+   ```
+
+2. **Map a Fader to Channel Volume**:
+   ```
+   - Click gear icon (⚙) on any channel
+   - Channel enters mapping mode (green indicator)
+   - Move a fader on your MIDI controller
+   - Mapping is created and saved
+   - Move the fader again - volume slider should move
+   ```
+
+3. **Map a Button to Mute**:
+   ```
+   - Click gear icon on a channel
+   - Press a button on your MIDI controller
+   - Mapping created for mute toggle
+   - Press button again - mute button should toggle
+   ```
+
+4. **Assign Audio Application** (CURRENTLY MANUAL):
+   ```
+   - Open code: ViewModels/MainWindowViewModel.cs
+   - In OnAudioSessionsChanged, manually add session to channel:
+     Channels[0].AssignedSessions.Add(session)
+   - This is temporary until Assignment UI is built
+   ```
+
+## Next Development Session
+
+**Start Here:**
+Implement Audio Session Assignment UI:
+- Create new window/dialog (Views/SessionAssignmentDialog.xaml)
+- Show list of AvailableSessions from MainWindowViewModel
+- Allow clicking/dragging to assign to channels
+- Add "Assign Session" button to channel strips
+- This will make the app fully functional for volume control

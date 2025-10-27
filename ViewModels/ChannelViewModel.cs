@@ -68,14 +68,14 @@ public partial class ChannelViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void ToggleMute()
+    public void ToggleMute()
     {
         IsMuted = !IsMuted;
         MuteChanged?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]
-    private void ToggleSolo()
+    public void ToggleSolo()
     {
         IsSoloed = !IsSoloed;
         SoloChanged?.Invoke(this, EventArgs.Empty);

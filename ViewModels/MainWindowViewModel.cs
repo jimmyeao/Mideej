@@ -208,8 +208,15 @@ public partial class MainWindowViewModel : ViewModelBase
             Index = Channels.Count,
             Name = $"Channel {Channels.Count + 1}"
         };
-        newChannel.VolumeChanged += OnChannelVolumeChanged;
+        SubscribeToChannelEvents(newChannel);
         Channels.Add(newChannel);
+    }
+
+    private void SubscribeToChannelEvents(ChannelViewModel channel)
+    {
+        channel.VolumeChanged += OnChannelVolumeChanged;
+        channel.MuteChanged += OnChannelMuteChanged;
+        channel.SoloChanged += OnChannelSoloChanged;
     }
 
     private void OnChannelVolumeChanged(object? sender, EventArgs e)
@@ -218,6 +225,19 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             ApplyVolumeToSessions(channel);
         }
+    }
+
+    private void OnChannelMuteChanged(object? sender, EventArgs e)
+    {
+        if (sender is ChannelViewModel channel)
+        {
+            ApplyMuteToSessions(channel);
+        }
+    }
+
+    private void OnChannelSoloChanged(object? sender, EventArgs e)
+    {
+        ApplySoloLogic();
     }
 
     [RelayCommand]
@@ -233,6 +253,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void OnMidiControlChange(object? sender, MidiControlChangeEventArgs e)
     {
+        // Debug: Show we received a MIDI message
+        Console.WriteLine($"MIDI CC: Ch{e.Channel} CC{e.Controller} Val{e.Value}");
+
         // Handle MIDI CC messages
         if (IsMappingModeActive && ChannelAwaitingMapping != null)
         {
@@ -496,7 +519,7 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 var channelVm = new ChannelViewModel();
                 channelVm.LoadConfiguration(channelConfig);
-                channelVm.VolumeChanged += OnChannelVolumeChanged;
+                SubscribeToChannelEvents(channelVm);
                 Channels.Add(channelVm);
             }
 
