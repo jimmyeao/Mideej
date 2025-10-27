@@ -1,0 +1,225 @@
+﻿<Window x:Class="Mideej.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Mideej"
+        xmlns:controls="clr-namespace:Mideej.Controls"
+        xmlns:viewmodels="clr-namespace:Mideej.ViewModels"
+        mc:Ignorable="d"
+        Title="{Binding Title}"
+        Height="700"
+        Width="1200"
+        MinHeight="500"
+        MinWidth="800"
+        Background="{DynamicResource BackgroundBrush}"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        ResizeMode="CanResize">
+
+    <Border BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="12"
+            Background="{DynamicResource BackgroundBrush}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="60"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title Bar -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource SurfaceBrush}"
+                    CornerRadius="12,12,0,0"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- App Title -->
+                    <StackPanel Grid.Column="0"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="20,0">
+                        <TextBlock Text="🎛️"
+                                   FontSize="24"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"/>
+                        <TextBlock Text="Mideej"
+                                   Style="{StaticResource TitleTextBlock}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Status Message -->
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding StatusMessage}"
+                               Style="{StaticResource SubtitleTextBlock}"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"/>
+
+                    <!-- Window Controls -->
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="12">
+                        <Button Content="—"
+                                Style="{StaticResource IconButton}"
+                                Click="MinimizeButton_Click"
+                                Margin="4,0"/>
+                        <Button Content="□"
+                                Style="{StaticResource IconButton}"
+                                Click="MaximizeButton_Click"
+                                Margin="4,0"/>
+                        <Button Content="✕"
+                                Style="{StaticResource IconButton}"
+                                Click="CloseButton_Click"
+                                Margin="4,0"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Toolbar -->
+            <Border Grid.Row="1"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,1"
+                    Padding="20,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- MIDI Device Selection -->
+                    <StackPanel Grid.Column="0"
+                                Orientation="Horizontal">
+                        <TextBlock Text="MIDI Device:"
+                                   Style="{StaticResource LabelTextBlock}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"/>
+                        <ComboBox ItemsSource="{Binding AvailableMidiDevices}"
+                                  SelectedItem="{Binding SelectedMidiDevice}"
+                                  Style="{StaticResource ModernComboBox}"
+                                  Width="200"
+                                  Margin="0,0,8,0"/>
+                        <Button Content="Connect"
+                                Command="{Binding ConnectMidiDeviceCommand}"
+                                Style="{StaticResource ModernButton}"
+                                Visibility="{Binding IsMidiConnected, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                                Margin="0,0,4,0"/>
+                        <Button Content="Disconnect"
+                                Command="{Binding DisconnectMidiDeviceCommand}"
+                                Style="{StaticResource ModernButton}"
+                                Visibility="{Binding IsMidiConnected, Converter={StaticResource BoolToVisibilityConverter}}"
+                                Margin="0,0,4,0"/>
+                        <Button Content="🔄"
+                                Command="{Binding RefreshMidiDevicesCommand}"
+                                Style="{StaticResource IconButton}"
+                                ToolTip="Refresh MIDI Devices"/>
+                    </StackPanel>
+
+                    <!-- Right Side Controls -->
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal">
+                        <Button Content="+ Channel"
+                                Command="{Binding AddChannelCommand}"
+                                Style="{StaticResource ModernButton}"
+                                Margin="0,0,8,0"/>
+                        <Button Content="🌙"
+                                Command="{Binding ToggleThemeCommand}"
+                                Style="{StaticResource IconButton}"
+                                ToolTip="Toggle Theme"
+                                Margin="0,0,8,0"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Main Content - Channels -->
+            <ScrollViewer Grid.Row="2"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Disabled"
+                          Margin="20">
+                <ItemsControl ItemsSource="{Binding Channels}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <controls:ChannelControl DataContext="{Binding}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- Bottom Status Bar -->
+            <Border Grid.Row="3"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,12,12"
+                    Padding="20,8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Connection Status -->
+                    <StackPanel Grid.Column="0"
+                                Orientation="Horizontal">
+                        <Ellipse Width="8"
+                                 Height="8"
+                                 Margin="0,0,8,0"
+                                 VerticalAlignment="Center">
+                            <Ellipse.Fill>
+                                <SolidColorBrush Color="{Binding IsMidiConnected, Converter={StaticResource ConnectionStatusConverter}, FallbackValue=#EF4444}"/>
+                            </Ellipse.Fill>
+                        </Ellipse>
+                        <TextBlock Text="{Binding IsMidiConnected, Converter={StaticResource ConnectionStatusTextConverter}, FallbackValue='Disconnected'}"
+                                   Style="{StaticResource SubtitleTextBlock}"
+                                   FontSize="12"/>
+                    </StackPanel>
+
+                    <!-- Mapping Mode Indicator -->
+                    <Border Grid.Column="1"
+                            Background="{DynamicResource AccentBrush}"
+                            CornerRadius="4"
+                            Padding="12,4"
+                            HorizontalAlignment="Center"
+                            Visibility="{Binding IsMappingModeActive, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⚙ MAPPING MODE ACTIVE"
+                                       Foreground="White"
+                                       FontWeight="Bold"
+                                       FontSize="12"
+                                       Margin="0,0,12,0"/>
+                            <Button Content="Cancel"
+                                    Command="{Binding CancelMappingModeCommand}"
+                                    Background="#EF4444"
+                                    Foreground="White"
+                                    BorderThickness="0"
+                                    Padding="8,2"
+                                    FontSize="11"
+                                    Cursor="Hand"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- App Info -->
+                    <TextBlock Grid.Column="2"
+                               Text="v1.0.0"
+                               Style="{StaticResource SubtitleTextBlock}"
+                               FontSize="10"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

@@ -1,0 +1,23 @@
+﻿<Application x:Class="Mideej.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Mideej"
+             xmlns:converters="clr-namespace:Mideej.Converters">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/DarkTheme.xaml"/>
+                <ResourceDictionary Source="Themes/Styles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Converters -->
+            <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+            <converters:VolumeToHeightConverter x:Key="VolumeToHeightConverter"/>
+            <converters:PercentageConverter x:Key="PercentageConverter"/>
+            <converters:MuteColorConverter x:Key="MuteColorConverter"/>
+            <converters:SoloColorConverter x:Key="SoloColorConverter"/>
+            <converters:ConnectionStatusConverter x:Key="ConnectionStatusConverter"/>
+            <converters:ConnectionStatusTextConverter x:Key="ConnectionStatusTextConverter"/>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
