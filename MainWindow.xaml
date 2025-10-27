@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Mideej"
+        xmlns:models="clr-namespace:Mideej.Models"
         xmlns:controls="clr-namespace:Mideej.Controls"
         xmlns:viewmodels="clr-namespace:Mideej.ViewModels"
         mc:Ignorable="d"
@@ -131,11 +132,28 @@
                                 Command="{Binding AddChannelCommand}"
                                 Style="{StaticResource ModernButton}"
                                 Margin="0,0,8,0"/>
-                        <Button Content="🌙"
-                                Command="{Binding ToggleThemeCommand}"
-                                Style="{StaticResource IconButton}"
-                                ToolTip="Toggle Theme"
-                                Margin="0,0,8,0"/>
+                        <ComboBox ItemsSource="{Binding AvailableThemes}"
+          SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
+          Style="{StaticResource ModernComboBox}"
+          ToolTip="Select Theme"
+          Width="180"
+          Margin="8,0,0,0">
+
+                            <!-- Display both icon and readable name -->
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type models:ThemeOption}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Icon}" FontSize="14" />
+                                        <TextBlock Text="{Binding DisplayName}" Margin="6,0,0,0" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+
+                            <!-- Also apply the same template to the selected item -->
+                           
+                        </ComboBox>
+
+
                     </StackPanel>
                 </Grid>
             </Border>

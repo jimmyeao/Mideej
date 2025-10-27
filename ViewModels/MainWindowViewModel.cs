@@ -1,8 +1,9 @@
-using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mideej.Models;
 using Mideej.Services;
+using System.Collections.ObjectModel;
+using System.Windows;
 
 namespace Mideej.ViewModels;
 
@@ -42,6 +43,17 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private AppTheme _currentTheme = AppTheme.Dark;
 
+    public ObservableCollection<ThemeOption> AvailableThemes { get; } = new()
+{
+    new ThemeOption { Name = "DarkTheme", DisplayName = "Dark 🌙" },
+    new ThemeOption { Name = "LightTheme", DisplayName = "Light ☀️" },
+    new ThemeOption { Name = "CyberpunkTheme", DisplayName = "Cyberpunk 🌈" },
+    new ThemeOption { Name = "ForestTheme", DisplayName = "Forest 🌿" },
+    new ThemeOption { Name = "ArcticTheme", DisplayName = "Arctic ❄️" }
+};
+
+    [ObservableProperty]
+    private ThemeOption? _selectedTheme;
     /// <summary>
     /// MIDI mappings: Key is (channel, controller), Value is the mapping
     /// </summary>
@@ -117,6 +129,41 @@ public partial class MainWindowViewModel : ViewModelBase
                 SubscribeToChannelEvents(channel);
                 Channels.Add(channel);
             }
+        }
+        SelectedTheme = AvailableThemes.FirstOrDefault(t => t.Name == "DarkTheme");
+        ApplyTheme(SelectedTheme);
+    }
+    partial void OnSelectedThemeChanged(ThemeOption? value)
+    {
+        if (value != null)
+            ApplyTheme(value);
+    }
+
+    private void ApplyTheme(ThemeOption theme)
+    {
+        try
+        {
+            Application.Current.Resources.MergedDictionaries.Clear();
+
+            // Base styles
+            var baseStyles = new ResourceDictionary
+            {
+                Source = new Uri("pack://application:,,,/Themes/Styles.xaml", UriKind.Absolute)
+            };
+            Application.Current.Resources.MergedDictionaries.Add(baseStyles);
+
+            // Selected theme
+            var themeDict = new ResourceDictionary
+            {
+                Source = new Uri($"pack://application:,,,/Themes/{theme.Name}.xaml", UriKind.Absolute)
+            };
+            Application.Current.Resources.MergedDictionaries.Add(themeDict);
+
+            StatusMessage = $"Theme applied: {theme.DisplayName}";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error applying theme: {ex.Message}";
         }
     }
 

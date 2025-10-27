@@ -116,15 +116,140 @@
         </Setter>
     </Style>
 
-    <!-- Modern ComboBox Style -->
     <Style x:Key="ModernComboBox" TargetType="ComboBox">
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto"/>
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding" Value="12,8"/>
+        <Setter Property="Padding" Value="10,6"/>
         <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <!-- Button area (custom-styled) -->
+                        <ToggleButton x:Name="ToggleButton"
+              Focusable="False"
+              FocusVisualStyle="{x:Null}"
+              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+              ClickMode="Press"
+              Background="Transparent"
+              BorderThickness="0"
+              Cursor="Hand">
+                            <!-- OVERRIDE DEFAULT CHROME -->
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <!-- no default Windows chrome, just host the content -->
+                                    <ContentPresenter/>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+
+                            <!-- your custom header visuals -->
+                            <Border x:Name="BackgroundBorder"
+            Background="{TemplateBinding Background}"
+            BorderBrush="{TemplateBinding BorderBrush}"
+            BorderThickness="{TemplateBinding BorderThickness}"
+            CornerRadius="6">
+                                <Grid>
+                                    <ContentPresenter Margin="{TemplateBinding Padding}"
+                              VerticalAlignment="Center"
+                              HorizontalAlignment="Left"
+                              RecognizesAccessKey="True"
+                              Content="{TemplateBinding SelectionBoxItem}"
+                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                              SnapsToDevicePixels="True"/>
+                                    <Path x:Name="Arrow"
+                  HorizontalAlignment="Right"
+                  VerticalAlignment="Center"
+                  Margin="0,0,10,0"
+                  Data="M 0 0 L 4 4 L 8 0 Z"
+                  Width="8"
+                  Height="4"
+                  Fill="{TemplateBinding Foreground}"/>
+                                </Grid>
+                            </Border>
+                        </ToggleButton>
+
+
+                        <!-- Dropdown popup -->
+                        <Popup x:Name="PART_Popup"
+                           Placement="Bottom"
+                           AllowsTransparency="True"
+                           Focusable="False"
+                           IsOpen="{TemplateBinding IsDropDownOpen}"
+                           PopupAnimation="Fade">
+                            <Border Background="{DynamicResource SurfaceBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                                <ScrollViewer>
+                                    <StackPanel IsItemsHost="True"
+                                            KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+
+                    <!-- Visual States -->
+                    <ControlTemplate.Triggers>
+                        <!-- Hover -->
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="BackgroundBorder" Property="Background" Value="{DynamicResource SurfaceHighlightBrush}"/>
+                            <Setter TargetName="BackgroundBorder" Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+                        </Trigger>
+
+                        <!-- Dropdown open -->
+                        <Trigger Property="IsDropDownOpen" Value="True">
+                            <Setter TargetName="BackgroundBorder" Property="Background" Value="{DynamicResource SurfaceBrush}" />
+                            <Setter TargetName="BackgroundBorder" Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
+                            <Setter TargetName="Arrow" Property="Fill" Value="{DynamicResource PrimaryBrush}" />
+                        </Trigger>
+
+
+                        <!-- Disabled -->
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
+
+
+
+
+
+    <!-- ComboBoxItem Style for Themed Dropdowns -->
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource SurfaceHighlightBrush}" />
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{DynamicResource PrimaryBrush}" />
+                <Setter Property="Foreground" Value="White"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.5"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+
+
 
     <!-- Modern TextBlock -->
     <Style x:Key="TitleTextBlock" TargetType="TextBlock">
