@@ -31,6 +31,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private ChannelViewModel? _channelAwaitingMapping;
 
     [ObservableProperty]
+    private string _controlTypeToMap = "Volume"; // Volume, Mute, Solo, Record, Select
+
+    [ObservableProperty]
     private string _statusMessage = "Ready";
 
     [ObservableProperty]
@@ -251,11 +254,12 @@ public partial class MainWindowViewModel : ViewModelBase
         channel.MappingModeRequested += OnChannelMappingModeRequested;
     }
 
-    private void OnChannelMappingModeRequested(object? sender, EventArgs e)
+    private void OnChannelMappingModeRequested(object? sender, MappingTypeRequestedEventArgs e)
     {
         if (sender is ChannelViewModel channel)
         {
-            Console.WriteLine($"=== Mapping mode requested for {channel.Name} ===");
+            ControlTypeToMap = e.ControlType;
+            Console.WriteLine($"=== Mapping mode requested for {channel.Name} - Control Type: {ControlTypeToMap} ===");
             StartMappingMode(channel);
         }
     }
@@ -303,9 +307,18 @@ public partial class MainWindowViewModel : ViewModelBase
         // Handle MIDI CC messages
         if (IsMappingModeActive && ChannelAwaitingMapping != null)
         {
-            // Create new mapping
-            CreateMapping(e.Channel, e.Controller, ChannelAwaitingMapping);
-            CancelMappingMode();
+            // Only map CC to Volume if that's what the user selected
+            if (ControlTypeToMap == "Volume")
+            {
+                Console.WriteLine($"  Mapping CC to Volume");
+                CreateMapping(e.Channel, e.Controller, ChannelAwaitingMapping);
+                CancelMappingMode();
+            }
+            else
+            {
+                StatusMessage = $"Expecting a button press for {ControlTypeToMap}, but received CC message. Try a fader/knob for Volume mapping.";
+                Console.WriteLine($"  Ignoring CC - expecting {ControlTypeToMap}");
+            }
         }
         else
         {
@@ -337,21 +350,20 @@ public partial class MainWindowViewModel : ViewModelBase
         // Visual feedback
         FlashMidiActivity($"MIDI Note On: Ch{e.Channel} Note#{e.NoteNumber}");
 
-        // Handle MIDI note messages (can be used for mute/solo/record/select buttons)
+        // Handle MIDI note messages (buttons)
         if (IsMappingModeActive && ChannelAwaitingMapping != null)
         {
-            // Auto-detect button type based on Mackie Control layout (M-Vave SMC8)
-            // Record: 0-7, Solo: 8-15, Mute: 16-23, Select: 24-31
-            MidiControlType buttonType = e.NoteNumber switch
+            // Use the control type selected by the user
+            MidiControlType buttonType = ControlTypeToMap switch
             {
-                >= 0 and <= 7 => MidiControlType.Record,
-                >= 8 and <= 15 => MidiControlType.Solo,
-                >= 16 and <= 23 => MidiControlType.Mute,
-                >= 24 and <= 31 => MidiControlType.Select,
-                _ => MidiControlType.Mute // Default fallback
+                "Mute" => MidiControlType.Mute,
+                "Solo" => MidiControlType.Solo,
+                "Record" => MidiControlType.Record,
+                "Select" => MidiControlType.Select,
+                _ => MidiControlType.Mute
             };
 
-            Console.WriteLine($"  Auto-detected button type: {buttonType}");
+            Console.WriteLine($"  Mapping button to: {buttonType}");
             CreateNoteMapping(e.Channel, e.NoteNumber, ChannelAwaitingMapping, buttonType);
             CancelMappingMode();
         }
@@ -380,10 +392,18 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (IsMappingModeActive && ChannelAwaitingMapping != null)
         {
-            Console.WriteLine($"  Creating fader mapping for channel {ChannelAwaitingMapping.Name}");
-            // Map this fader to the channel
-            CreateFaderMapping(e.Channel, ChannelAwaitingMapping);
-            CancelMappingMode();
+            // Only map pitch bend to Volume if that's what the user selected
+            if (ControlTypeToMap == "Volume")
+            {
+                Console.WriteLine($"  Creating fader mapping for channel {ChannelAwaitingMapping.Name}");
+                CreateFaderMapping(e.Channel, ChannelAwaitingMapping);
+                CancelMappingMode();
+            }
+            else
+            {
+                StatusMessage = $"Expecting a button press for {ControlTypeToMap}, but received fader. Try pressing a button.";
+                Console.WriteLine($"  Ignoring pitch bend - expecting {ControlTypeToMap}");
+            }
         }
         else
         {
@@ -499,21 +519,19 @@ public partial class MainWindowViewModel : ViewModelBase
                 break;
 
             case MidiControlType.Record:
-                // TODO: Implement record functionality
-                // For now, just provide visual feedback
-                StatusMessage = $"{channel.Name} - Record button pressed (not yet implemented)";
-                Console.WriteLine($"Record button pressed for {channel.Name}");
-                // Blink the LED
-                _midiService?.SendNoteOn(midiChannel, noteNumber, 127);
+                channel.ToggleRecord();
+                // Send LED feedback
+                _midiService?.SendNoteOn(midiChannel, noteNumber, channel.IsRecording ? 127 : 0);
+                StatusMessage = $"{channel.Name} - Recording: {(channel.IsRecording ? "ON" : "OFF")}";
+                Console.WriteLine($"Record toggled for {channel.Name}: {channel.IsRecording}");
                 break;
 
             case MidiControlType.Select:
-                // TODO: Implement select/highlight functionality
-                // For now, just provide visual feedback
-                StatusMessage = $"{channel.Name} - Select button pressed (not yet implemented)";
-                Console.WriteLine($"Select button pressed for {channel.Name}");
-                // Blink the LED
-                _midiService?.SendNoteOn(midiChannel, noteNumber, 127);
+                channel.ToggleSelect();
+                // Send LED feedback
+                _midiService?.SendNoteOn(midiChannel, noteNumber, channel.IsSelected ? 127 : 0);
+                StatusMessage = $"{channel.Name} - Selected: {(channel.IsSelected ? "ON" : "OFF")}";
+                Console.WriteLine($"Select toggled for {channel.Name}: {channel.IsSelected}");
                 break;
         }
     }

@@ -6,8 +6,8 @@
              xmlns:local="clr-namespace:Mideej.Controls"
              mc:Ignorable="d"
              d:DesignHeight="450"
-             Width="142">
-    <Border Style="{StaticResource Card}" Margin="4">
+             Width="140">
+    <Border Style="{StaticResource Card}" Margin="4,4,0,4">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -103,18 +103,15 @@
                            Foreground="White"/>
             </Border>
 
-            <!-- Mapping Button (shown on hover) -->
-            <Button Grid.Row="0"
-                    Grid.RowSpan="5"
-                    Content="⚙"
-                    Style="{StaticResource IconButton}"
-                    Command="{Binding EnterMappingModeCommand}"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Top"
-                    Margin="4"
-                    Opacity="0.5"
-                    ToolTip="Map MIDI Control">
-                <Button.Triggers>
+            <!-- Mapping Buttons Panel (shown on hover) -->
+            <StackPanel Grid.Row="0"
+                        Grid.RowSpan="2"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Margin="0,4,3,0"
+                        Opacity="0.3"
+                        x:Name="MappingButtonsPanel" Width="18">
+                <StackPanel.Triggers>
                     <EventTrigger RoutedEvent="MouseEnter">
                         <BeginStoryboard>
                             <Storyboard>
@@ -128,13 +125,63 @@
                         <BeginStoryboard>
                             <Storyboard>
                                 <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                               To="0.5"
+                                               To="0.3"
                                                Duration="0:0:0.2"/>
                             </Storyboard>
                         </BeginStoryboard>
                     </EventTrigger>
-                </Button.Triggers>
-            </Button>
+                </StackPanel.Triggers>
+
+                <Button Content="🎚"
+                        Style="{StaticResource IconButton}"
+                        Command="{Binding EnterMappingModeCommand}"
+                        CommandParameter="Volume"
+                        Width="24"
+                        Height="24"
+                        Margin="0,1"
+                        FontSize="12"
+                        ToolTip="Map Volume (Fader/Knob)"/>
+
+                <Button Content="🔇"
+                        Style="{StaticResource IconButton}"
+                        Command="{Binding EnterMappingModeCommand}"
+                        CommandParameter="Mute"
+                        Width="24"
+                        Height="24"
+                        Margin="0,1"
+                        FontSize="12"
+                        ToolTip="Map Mute Button"/>
+
+                <Button Content="🎵"
+                        Style="{StaticResource IconButton}"
+                        Command="{Binding EnterMappingModeCommand}"
+                        CommandParameter="Solo"
+                        Width="24"
+                        Height="24"
+                        Margin="0,1"
+                        FontSize="12"
+                        ToolTip="Map Solo Button"/>
+
+                <Button Content="⏺"
+                        Style="{StaticResource IconButton}"
+                        Command="{Binding EnterMappingModeCommand}"
+                        CommandParameter="Record"
+                        Width="24"
+                        Height="24"
+                        Margin="0,1"
+                        FontSize="12"
+                        ToolTip="Map Record Button"/>
+
+                <Button Content="▶"
+                        Style="{StaticResource IconButton}"
+                        Command="{Binding EnterMappingModeCommand}"
+                        CommandParameter="Select"
+                        Width="24"
+                        Height="24"
+                        Margin="0,1"
+                        FontSize="12"
+                        ToolTip="Map Select Button"/>
+            </StackPanel>
         </Grid>
     </Border>
 </UserControl>

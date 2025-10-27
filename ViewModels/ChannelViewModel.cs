@@ -26,6 +26,12 @@ public partial class ChannelViewModel : ViewModelBase
     private bool _isSoloed;
 
     [ObservableProperty]
+    private bool _isRecording;
+
+    [ObservableProperty]
+    private bool _isSelected;
+
+    [ObservableProperty]
     private float _peakLevel;
 
     [ObservableProperty]
@@ -60,7 +66,17 @@ public partial class ChannelViewModel : ViewModelBase
     /// <summary>
     /// Event fired when user wants to enter mapping mode for this channel
     /// </summary>
-    public event EventHandler? MappingModeRequested;
+    public event EventHandler<MappingTypeRequestedEventArgs>? MappingModeRequested;
+
+    /// <summary>
+    /// Event fired when record state changes
+    /// </summary>
+    public event EventHandler? RecordChanged;
+
+    /// <summary>
+    /// Event fired when select state changes
+    /// </summary>
+    public event EventHandler? SelectChanged;
 
     partial void OnVolumeChanged(float value)
     {
@@ -87,10 +103,25 @@ public partial class ChannelViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void EnterMappingMode()
+    private void EnterMappingMode(string controlType)
     {
         IsInMappingMode = true;
-        MappingModeRequested?.Invoke(this, EventArgs.Empty);
+        var args = new MappingTypeRequestedEventArgs(controlType);
+        MappingModeRequested?.Invoke(this, args);
+    }
+
+    [RelayCommand]
+    public void ToggleRecord()
+    {
+        IsRecording = !IsRecording;
+        RecordChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    public void ToggleSelect()
+    {
+        IsSelected = !IsSelected;
+        SelectChanged?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]
@@ -145,5 +176,18 @@ public partial class ChannelViewModel : ViewModelBase
         IsSoloed = config.IsSoloed;
         Color = config.Color;
         Filter = config.Filter;
+    }
+}
+
+/// <summary>
+/// Event args for mapping mode requests with control type
+/// </summary>
+public class MappingTypeRequestedEventArgs : EventArgs
+{
+    public string ControlType { get; }
+
+    public MappingTypeRequestedEventArgs(string controlType)
+    {
+        ControlType = controlType;
     }
 }
