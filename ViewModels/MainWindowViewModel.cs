@@ -34,6 +34,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private string _statusMessage = "Ready";
 
     [ObservableProperty]
+    private bool _midiActivityIndicator;
+
+    [ObservableProperty]
     private AppTheme _currentTheme = AppTheme.Dark;
 
     /// <summary>
@@ -83,6 +86,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             _midiService.ControlChangeReceived += OnMidiControlChange;
             _midiService.NoteOnReceived += OnMidiNoteOn;
+            _midiService.PitchBendReceived += OnMidiPitchBend;
             _midiService.DeviceStateChanged += OnMidiDeviceStateChanged;
             RefreshMidiDevices();
         }
@@ -134,16 +138,23 @@ public partial class MainWindowViewModel : ViewModelBase
         if (SelectedMidiDevice == null || _midiService == null) return;
 
         StatusMessage = $"Connecting to {SelectedMidiDevice.Name}...";
+        Console.WriteLine($"Attempting to connect to MIDI device: {SelectedMidiDevice.Name} (ID: {SelectedMidiDevice.DeviceId})");
+
         var success = await _midiService.ConnectAsync(SelectedMidiDevice.DeviceId);
 
         if (success)
         {
             IsMidiConnected = true;
-            StatusMessage = $"Connected to {SelectedMidiDevice.Name}";
+            StatusMessage = $"✓ Connected to {SelectedMidiDevice.Name}";
+            Console.WriteLine($"Successfully connected to {SelectedMidiDevice.Name}");
+            Console.WriteLine("Listening for MIDI messages...");
         }
         else
         {
-            StatusMessage = $"Failed to connect to {SelectedMidiDevice.Name}";
+            IsMidiConnected = false;
+            StatusMessage = $"✗ Failed to connect to {SelectedMidiDevice.Name} - May be in use by another app";
+            Console.WriteLine($"FAILED to connect to {SelectedMidiDevice.Name}");
+            Console.WriteLine("Make sure the device is not open in another application (DAW, etc.)");
         }
     }
 
@@ -162,22 +173,41 @@ public partial class MainWindowViewModel : ViewModelBase
 
         AvailableMidiDevices.Clear();
         var devices = _midiService.GetAvailableDevices();
+
+        Console.WriteLine($"Found {devices.Count} MIDI device(s):");
         foreach (var device in devices)
         {
+            Console.WriteLine($"  - [{device.DeviceId}] {device.Name}");
             AvailableMidiDevices.Add(device);
+        }
+
+        if (devices.Count > 0)
+        {
+            Console.WriteLine("TIP: If you see multiple devices, choose the one with 'MIDIIN' in the name for input.");
         }
     }
 
     [RelayCommand]
     private void StartMappingMode(ChannelViewModel channel)
     {
-        if (_midiService == null) return;
+        if (_midiService == null)
+        {
+            StatusMessage = "MIDI service not available";
+            return;
+        }
+
+        if (!IsMidiConnected)
+        {
+            StatusMessage = "Please connect a MIDI device first";
+            return;
+        }
 
         ChannelAwaitingMapping = channel;
         channel.IsInMappingMode = true;
         IsMappingModeActive = true;
         _midiService.StartMappingMode();
-        StatusMessage = $"Move a MIDI control to map to {channel.Name}...";
+        StatusMessage = $"MAPPING MODE: Move a MIDI control to map to {channel.Name}";
+        Console.WriteLine($"=== MAPPING MODE STARTED for {channel.Name} ===");
     }
 
     [RelayCommand]
@@ -190,7 +220,8 @@ public partial class MainWindowViewModel : ViewModelBase
         ChannelAwaitingMapping = null;
         IsMappingModeActive = false;
         _midiService?.StopMappingMode();
-        StatusMessage = "Mapping cancelled";
+        StatusMessage = "Mapping cancelled - Ready";
+        Console.WriteLine("=== MAPPING MODE CANCELLED ===");
     }
 
     [RelayCommand]
@@ -217,6 +248,16 @@ public partial class MainWindowViewModel : ViewModelBase
         channel.VolumeChanged += OnChannelVolumeChanged;
         channel.MuteChanged += OnChannelMuteChanged;
         channel.SoloChanged += OnChannelSoloChanged;
+        channel.MappingModeRequested += OnChannelMappingModeRequested;
+    }
+
+    private void OnChannelMappingModeRequested(object? sender, EventArgs e)
+    {
+        if (sender is ChannelViewModel channel)
+        {
+            Console.WriteLine($"=== Mapping mode requested for {channel.Name} ===");
+            StartMappingMode(channel);
+        }
     }
 
     private void OnChannelVolumeChanged(object? sender, EventArgs e)
@@ -256,6 +297,9 @@ public partial class MainWindowViewModel : ViewModelBase
         // Debug: Show we received a MIDI message
         Console.WriteLine($"MIDI CC: Ch{e.Channel} CC{e.Controller} Val{e.Value}");
 
+        // Visual feedback - flash activity indicator
+        FlashMidiActivity($"MIDI CC: Ch{e.Channel} CC#{e.Controller} = {e.Value}");
+
         // Handle MIDI CC messages
         if (IsMappingModeActive && ChannelAwaitingMapping != null)
         {
@@ -270,19 +314,81 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private async void FlashMidiActivity(string message)
+    {
+        MidiActivityIndicator = true;
+        var previousMessage = StatusMessage;
+        StatusMessage = $"🎵 {message}";
+
+        await Task.Delay(500);
+
+        MidiActivityIndicator = false;
+        if (!IsMappingModeActive)
+        {
+            StatusMessage = previousMessage;
+        }
+    }
+
     private void OnMidiNoteOn(object? sender, MidiNoteEventArgs e)
     {
-        // Handle MIDI note messages (can be used for mute/solo buttons)
+        // Debug: Show we received a MIDI note message
+        Console.WriteLine($"MIDI Note On: Ch{e.Channel} Note#{e.NoteNumber} Vel{e.Velocity}");
+
+        // Visual feedback
+        FlashMidiActivity($"MIDI Note On: Ch{e.Channel} Note#{e.NoteNumber}");
+
+        // Handle MIDI note messages (can be used for mute/solo/record/select buttons)
         if (IsMappingModeActive && ChannelAwaitingMapping != null)
         {
-            // Create mapping for note-based control (mute button)
-            CreateNoteMapping(e.Channel, e.NoteNumber, ChannelAwaitingMapping, MidiControlType.Mute);
+            // Auto-detect button type based on Mackie Control layout (M-Vave SMC8)
+            // Record: 0-7, Solo: 8-15, Mute: 16-23, Select: 24-31
+            MidiControlType buttonType = e.NoteNumber switch
+            {
+                >= 0 and <= 7 => MidiControlType.Record,
+                >= 8 and <= 15 => MidiControlType.Solo,
+                >= 16 and <= 23 => MidiControlType.Mute,
+                >= 24 and <= 31 => MidiControlType.Select,
+                _ => MidiControlType.Mute // Default fallback
+            };
+
+            Console.WriteLine($"  Auto-detected button type: {buttonType}");
+            CreateNoteMapping(e.Channel, e.NoteNumber, ChannelAwaitingMapping, buttonType);
             CancelMappingMode();
         }
         else
         {
             // Apply existing note mapping
             ApplyMidiNote(e.Channel, e.NoteNumber);
+        }
+    }
+
+    private void OnMidiPitchBend(object? sender, MidiPitchBendEventArgs e)
+    {
+        // Debug: Show we received a pitch bend message (used for faders in Mackie mode)
+        // Convert 0-16383 to 0-127 for display
+        int value127 = e.Value / 128;
+        float volumePercent = (e.Value / 16383f) * 100f;
+
+        Console.WriteLine($"MIDI Pitch Bend: Ch{e.Channel} RawValue={e.Value} Display={value127}/127 Volume={volumePercent:F1}%");
+        Console.WriteLine($"  IsMappingModeActive={IsMappingModeActive}, ChannelAwaitingMapping={ChannelAwaitingMapping?.Name ?? "null"}");
+
+        // Visual feedback
+        FlashMidiActivity($"MIDI Fader: Ch{e.Channel + 1} = {value127}/127");
+
+        // In Mackie mode, the fader channel directly corresponds to the mixer channel (1-8)
+        // So channel 0 = Channel 1, channel 1 = Channel 2, etc.
+
+        if (IsMappingModeActive && ChannelAwaitingMapping != null)
+        {
+            Console.WriteLine($"  Creating fader mapping for channel {ChannelAwaitingMapping.Name}");
+            // Map this fader to the channel
+            CreateFaderMapping(e.Channel, ChannelAwaitingMapping);
+            CancelMappingMode();
+        }
+        else
+        {
+            // Apply fader value to the mapped channel
+            ApplyMidiFader(e.Channel, e.Value);
         }
     }
 
@@ -308,6 +414,57 @@ public partial class MainWindowViewModel : ViewModelBase
         StatusMessage = $"Mapped MIDI CH{midiChannel + 1} Note{noteNumber} to {channel.Name} {controlType}";
     }
 
+    private void CreateFaderMapping(int midiChannel, ChannelViewModel channel)
+    {
+        // For faders, we use -1 as a special indicator that this is a pitch bend mapping
+        var mapping = new MidiMapping
+        {
+            Channel = midiChannel,
+            ControlNumber = -1, // Special value for pitch bend
+            TargetChannelIndex = channel.Index,
+            ControlType = MidiControlType.Volume
+        };
+
+        var key = (midiChannel, -1); // Use -1 as the "control number" for pitch bend
+        _midiMappings[key] = mapping;
+
+        if (_configurationService != null)
+        {
+            _configurationService.CurrentSettings.MidiMappings = _midiMappings.Values.ToList();
+            _ = _configurationService.SaveCurrentSettingsAsync();
+        }
+
+        StatusMessage = $"Mapped Fader on MIDI CH{midiChannel + 1} to {channel.Name}";
+        Console.WriteLine($"Created fader mapping: MIDI CH{midiChannel} -> {channel.Name}");
+    }
+
+    private void ApplyMidiFader(int midiChannel, int pitchBendValue)
+    {
+        var key = (midiChannel, -1); // Look for pitch bend mapping
+        if (!_midiMappings.TryGetValue(key, out var mapping))
+        {
+            // No mapping for this fader yet
+            return;
+        }
+
+        if (mapping.TargetChannelIndex >= Channels.Count)
+        {
+            return;
+        }
+
+        var channel = Channels[mapping.TargetChannelIndex];
+
+        // Convert pitch bend value (0-16383) to volume (0.0-1.0)
+        float volume = pitchBendValue / 16383f;
+        channel.Volume = volume;
+
+        // Apply to audio sessions
+        ApplyVolumeToSessions(channel);
+
+        // Send feedback to motorized fader
+        _midiService?.SendPitchBend(midiChannel, pitchBendValue);
+    }
+
     private void ApplyMidiNote(int midiChannel, int noteNumber)
     {
         var key = (midiChannel, noteNumber);
@@ -328,11 +485,35 @@ public partial class MainWindowViewModel : ViewModelBase
             case MidiControlType.Mute:
                 channel.ToggleMute();
                 ApplyMuteToSessions(channel);
+                // Send LED feedback (on=127, off=0)
+                _midiService?.SendNoteOn(midiChannel, noteNumber, channel.IsMuted ? 127 : 0);
+                Console.WriteLine($"Mute toggled for {channel.Name}: {channel.IsMuted}");
                 break;
 
             case MidiControlType.Solo:
                 channel.ToggleSolo();
                 ApplySoloLogic();
+                // Send LED feedback
+                _midiService?.SendNoteOn(midiChannel, noteNumber, channel.IsSoloed ? 127 : 0);
+                Console.WriteLine($"Solo toggled for {channel.Name}: {channel.IsSoloed}");
+                break;
+
+            case MidiControlType.Record:
+                // TODO: Implement record functionality
+                // For now, just provide visual feedback
+                StatusMessage = $"{channel.Name} - Record button pressed (not yet implemented)";
+                Console.WriteLine($"Record button pressed for {channel.Name}");
+                // Blink the LED
+                _midiService?.SendNoteOn(midiChannel, noteNumber, 127);
+                break;
+
+            case MidiControlType.Select:
+                // TODO: Implement select/highlight functionality
+                // For now, just provide visual feedback
+                StatusMessage = $"{channel.Name} - Select button pressed (not yet implemented)";
+                Console.WriteLine($"Select button pressed for {channel.Name}");
+                // Blink the LED
+                _midiService?.SendNoteOn(midiChannel, noteNumber, 127);
                 break;
         }
     }
@@ -472,6 +653,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 channel.Volume = scaledValue;
                 // Apply to all assigned audio sessions
                 ApplyVolumeToSessions(channel);
+                // Send feedback to MIDI controller (motorized fader)
+                SendVolumeFeedback(midiChannel, controller, value);
                 break;
 
             case MidiControlType.Pan:
@@ -492,6 +675,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
                 break;
         }
+    }
+
+    private void SendVolumeFeedback(int midiChannel, int controller, int value)
+    {
+        // Send the same value back to the controller for motorized faders
+        _midiService?.SendControlChange(midiChannel, controller, value);
     }
 
     private void ApplyVolumeToSessions(ChannelViewModel channel)

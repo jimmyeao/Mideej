@@ -57,6 +57,11 @@ public partial class ChannelViewModel : ViewModelBase
     /// </summary>
     public event EventHandler? SoloChanged;
 
+    /// <summary>
+    /// Event fired when user wants to enter mapping mode for this channel
+    /// </summary>
+    public event EventHandler? MappingModeRequested;
+
     partial void OnVolumeChanged(float value)
     {
         // Clamp volume between 0 and 1
@@ -85,6 +90,7 @@ public partial class ChannelViewModel : ViewModelBase
     private void EnterMappingMode()
     {
         IsInMappingMode = true;
+        MappingModeRequested?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]

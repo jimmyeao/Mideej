@@ -23,6 +23,11 @@ public interface IMidiService
     event EventHandler<MidiNoteEventArgs>? NoteOffReceived;
 
     /// <summary>
+    /// Event fired when a MIDI pitch bend message is received (used for faders in Mackie mode)
+    /// </summary>
+    event EventHandler<MidiPitchBendEventArgs>? PitchBendReceived;
+
+    /// <summary>
     /// Event fired when a MIDI device is connected or disconnected
     /// </summary>
     event EventHandler<MidiDeviceEventArgs>? DeviceStateChanged;
@@ -66,6 +71,26 @@ public interface IMidiService
     /// Whether mapping mode is active
     /// </summary>
     bool IsMappingMode { get; }
+
+    /// <summary>
+    /// Sends a control change message to the MIDI device
+    /// </summary>
+    void SendControlChange(int channel, int controller, int value);
+
+    /// <summary>
+    /// Sends a note on message to the MIDI device (for LED buttons)
+    /// </summary>
+    void SendNoteOn(int channel, int noteNumber, int velocity);
+
+    /// <summary>
+    /// Sends a note off message to the MIDI device
+    /// </summary>
+    void SendNoteOff(int channel, int noteNumber);
+
+    /// <summary>
+    /// Sends a pitch bend message (for motorized faders in some protocols)
+    /// </summary>
+    void SendPitchBend(int channel, int value);
 }
 
 /// <summary>
@@ -86,6 +111,15 @@ public class MidiNoteEventArgs : EventArgs
     public int Channel { get; set; }
     public int NoteNumber { get; set; }
     public int Velocity { get; set; }
+}
+
+/// <summary>
+/// Event args for MIDI pitch bend messages
+/// </summary>
+public class MidiPitchBendEventArgs : EventArgs
+{
+    public int Channel { get; set; }
+    public int Value { get; set; } // 0-16383, center is 8192
 }
 
 /// <summary>

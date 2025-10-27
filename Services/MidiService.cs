@@ -4,17 +4,19 @@ using NAudio.Midi;
 namespace Mideej.Services;
 
 /// <summary>
-/// Service for managing MIDI device connections and input
+/// Service for managing MIDI device connections and input/output
 /// </summary>
 public class MidiService : IMidiService, IDisposable
 {
     private MidiIn? _midiIn;
+    private MidiOut? _midiOut;
     private MidiDeviceInfo? _currentDevice;
     private bool _isMappingMode;
 
     public event EventHandler<MidiControlChangeEventArgs>? ControlChangeReceived;
     public event EventHandler<MidiNoteEventArgs>? NoteOnReceived;
     public event EventHandler<MidiNoteEventArgs>? NoteOffReceived;
+    public event EventHandler<MidiPitchBendEventArgs>? PitchBendReceived;
     public event EventHandler<MidiDeviceEventArgs>? DeviceStateChanged;
 
     public bool IsConnected => _midiIn != null;
@@ -64,6 +66,18 @@ public class MidiService : IMidiService, IDisposable
                 _midiIn.MessageReceived += OnMidiMessageReceived;
                 _midiIn.ErrorReceived += OnMidiErrorReceived;
 
+                // Create new MIDI output (same device)
+                try
+                {
+                    _midiOut = new MidiOut(deviceId);
+                    Console.WriteLine($"MIDI Output initialized for device {deviceId}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Warning: Could not open MIDI output: {ex.Message}");
+                    // Continue without output - input will still work
+                }
+
                 // Get device info
                 var caps = MidiIn.DeviceInfo(deviceId);
                 _currentDevice = new MidiDeviceInfo
@@ -76,6 +90,8 @@ public class MidiService : IMidiService, IDisposable
 
                 // Start receiving MIDI messages
                 _midiIn.Start();
+
+                Console.WriteLine($"MIDI Input started for device {deviceId}");
 
                 // Raise device state changed event
                 DeviceStateChanged?.Invoke(this, new MidiDeviceEventArgs
@@ -91,6 +107,8 @@ public class MidiService : IMidiService, IDisposable
                 Console.WriteLine($"Error connecting to MIDI device: {ex.Message}");
                 _midiIn?.Dispose();
                 _midiIn = null;
+                _midiOut?.Dispose();
+                _midiOut = null;
                 _currentDevice = null;
                 return false;
             }
@@ -99,14 +117,22 @@ public class MidiService : IMidiService, IDisposable
 
     public void Disconnect()
     {
-        if (_midiIn != null)
+        if (_midiIn != null || _midiOut != null)
         {
             try
             {
-                _midiIn.Stop();
-                _midiIn.MessageReceived -= OnMidiMessageReceived;
-                _midiIn.ErrorReceived -= OnMidiErrorReceived;
-                _midiIn.Dispose();
+                if (_midiIn != null)
+                {
+                    _midiIn.Stop();
+                    _midiIn.MessageReceived -= OnMidiMessageReceived;
+                    _midiIn.ErrorReceived -= OnMidiErrorReceived;
+                    _midiIn.Dispose();
+                }
+
+                if (_midiOut != null)
+                {
+                    _midiOut.Dispose();
+                }
 
                 var device = _currentDevice;
                 if (device != null)
@@ -126,6 +152,7 @@ public class MidiService : IMidiService, IDisposable
             finally
             {
                 _midiIn = null;
+                _midiOut = null;
                 _currentDevice = null;
             }
         }
@@ -221,6 +248,23 @@ public class MidiService : IMidiService, IDisposable
                         });
                     }
                     break;
+
+                case MidiCommandCode.PitchWheelChange:
+                    if (message is PitchWheelChangeEvent pitchEvent)
+                    {
+                        var args = new MidiPitchBendEventArgs
+                        {
+                            Channel = message.Channel - 1,
+                            Value = pitchEvent.Pitch // 0-16383, center is 8192
+                        };
+
+                        // Dispatch to UI thread
+                        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+                        {
+                            PitchBendReceived?.Invoke(this, args);
+                        });
+                    }
+                    break;
             }
         }
         catch (Exception ex)
@@ -232,6 +276,70 @@ public class MidiService : IMidiService, IDisposable
     private void OnMidiErrorReceived(object? sender, MidiInMessageEventArgs e)
     {
         Console.WriteLine($"MIDI Error: {e.MidiEvent}");
+    }
+
+    public void SendControlChange(int channel, int controller, int value)
+    {
+        if (_midiOut == null) return;
+
+        try
+        {
+            var message = new ControlChangeEvent(0, channel + 1, (MidiController)controller, value);
+            _midiOut.Send(message.GetAsShortMessage());
+            Console.WriteLine($"Sent MIDI CC: Ch{channel} CC{controller} Val{value}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error sending MIDI CC: {ex.Message}");
+        }
+    }
+
+    public void SendNoteOn(int channel, int noteNumber, int velocity)
+    {
+        if (_midiOut == null) return;
+
+        try
+        {
+            var message = new NoteOnEvent(0, channel + 1, noteNumber, velocity, 0);
+            _midiOut.Send(message.GetAsShortMessage());
+            Console.WriteLine($"Sent MIDI NoteOn: Ch{channel} Note{noteNumber} Vel{velocity}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error sending MIDI Note On: {ex.Message}");
+        }
+    }
+
+    public void SendNoteOff(int channel, int noteNumber)
+    {
+        if (_midiOut == null) return;
+
+        try
+        {
+            var message = new NoteEvent(0, channel + 1, MidiCommandCode.NoteOff, noteNumber, 0);
+            _midiOut.Send(message.GetAsShortMessage());
+            Console.WriteLine($"Sent MIDI NoteOff: Ch{channel} Note{noteNumber}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error sending MIDI Note Off: {ex.Message}");
+        }
+    }
+
+    public void SendPitchBend(int channel, int value)
+    {
+        if (_midiOut == null) return;
+
+        try
+        {
+            var message = new PitchWheelChangeEvent(0, channel + 1, value);
+            _midiOut.Send(message.GetAsShortMessage());
+            Console.WriteLine($"Sent MIDI PitchBend: Ch{channel} Val{value}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error sending MIDI Pitch Bend: {ex.Message}");
+        }
     }
 
     public void Dispose()

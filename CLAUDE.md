@@ -106,9 +106,19 @@ This project follows the standard WPF code-behind pattern with MVVM consideratio
 
 ### MIDI Message Types
 
-- **Control Change (CC)**: Used for faders, knobs, and continuous controls (0-127 values)
-- **Note On/Off**: Can be used for buttons (mute, solo toggles)
+- **Control Change (CC)**: Used for knobs and rotary encoders (0-127 values)
+- **Pitch Bend**: Used for faders in Mackie Control mode (0-16383 values, center at 8192)
+- **Note On/Off**: Used for buttons (mute, solo, record, select toggles)
 - **Program Change**: Could be used for profile switching
+
+### Mackie Control Protocol Support
+
+The application supports Mackie Control-compatible devices like the M-Vave SMC8:
+- **Faders**: Use MIDI Pitch Bend messages on channels 1-8
+- **Knobs**: Use CC messages 0x10-0x17 (CC#16-23)
+- **Buttons**: Use Note messages 0x00-0x1F for Record/Solo/Mute/Select
+- **LED Feedback**: Sends Note On messages back to illuminate button LEDs
+- **Motorized Faders**: Sends Pitch Bend messages for motorized fader position updates
 
 ### MIDI Mapping Strategy
 
@@ -193,12 +203,15 @@ This project is based on [DeejNG](https://github.com/jimmyeao/DeejNG). Key conce
 
 **MIDI Control System:**
 - MIDI device enumeration and connection
-- MIDI CC message handling for continuous controls (faders, knobs)
+- MIDI CC message handling for continuous controls (knobs, rotary encoders)
+- MIDI Pitch Bend message handling for faders (Mackie Control mode)
 - MIDI Note On/Off handling for buttons (mute/solo)
 - "Learn" mode for mapping MIDI controls to channels
 - Mapping persistence (save/load from JSON configuration)
 - Multi-channel support (8 channels by default, expandable)
 - Value scaling and inversion support for mappings
+- Bi-directional MIDI (send feedback to motorized faders and LED buttons)
+- Visual MIDI activity indicator with real-time message display
 
 **Audio Session Management:**
 - Windows audio session enumeration via NAudio

@@ -186,7 +186,25 @@
                         </Ellipse>
                         <TextBlock Text="{Binding IsMidiConnected, Converter={StaticResource ConnectionStatusTextConverter}, FallbackValue='Disconnected'}"
                                    Style="{StaticResource SubtitleTextBlock}"
-                                   FontSize="12"/>
+                                   FontSize="12"
+                                   Margin="0,0,12,0"/>
+
+                        <!-- MIDI Activity Indicator -->
+                        <Ellipse Width="8"
+                                 Height="8"
+                                 Margin="0,0,8,0"
+                                 VerticalAlignment="Center"
+                                 Visibility="{Binding MidiActivityIndicator, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Ellipse.Fill>
+                                <SolidColorBrush Color="#22C55E"/>
+                            </Ellipse.Fill>
+                        </Ellipse>
+                        <TextBlock Text="MIDI Activity"
+                                   Style="{StaticResource SubtitleTextBlock}"
+                                   FontSize="12"
+                                   Foreground="#22C55E"
+                                   FontWeight="Bold"
+                                   Visibility="{Binding MidiActivityIndicator, Converter={StaticResource BoolToVisibilityConverter}}"/>
                     </StackPanel>
 
                     <!-- Mapping Mode Indicator -->

@@ -49,6 +49,8 @@ public enum MidiControlType
     Volume,
     Mute,
     Solo,
+    Record,
+    Select,
     FilterCutoff,
     FilterResonance,
     FilterType,
