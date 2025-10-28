@@ -18,6 +18,7 @@
             <converters:SoloColorConverter x:Key="SoloColorConverter"/>
             <converters:ConnectionStatusConverter x:Key="ConnectionStatusConverter"/>
             <converters:ConnectionStatusTextConverter x:Key="ConnectionStatusTextConverter"/>
+            <converters:SessionTypeIconConverter x:Key="SessionTypeIconConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

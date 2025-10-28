@@ -43,6 +43,9 @@ public partial class ChannelViewModel : ViewModelBase
     [ObservableProperty]
     private FilterConfiguration? _filter;
 
+    [ObservableProperty]
+    private AudioSessionType? _sessionType;
+
     /// <summary>
     /// Audio sessions assigned to this channel
     /// </summary>
@@ -77,6 +80,11 @@ public partial class ChannelViewModel : ViewModelBase
     /// Event fired when select state changes
     /// </summary>
     public event EventHandler? SelectChanged;
+
+    /// <summary>
+    /// Event fired when user wants to assign a session to this channel
+    /// </summary>
+    public event EventHandler? SessionAssignmentRequested;
 
     partial void OnVolumeChanged(float value)
     {
@@ -127,7 +135,8 @@ public partial class ChannelViewModel : ViewModelBase
     [RelayCommand]
     private void AssignSession()
     {
-        // Will be called when user wants to assign an audio session to this channel
+        // Fire event so MainWindowViewModel can handle showing the dialog
+        SessionAssignmentRequested?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]
@@ -160,6 +169,7 @@ public partial class ChannelViewModel : ViewModelBase
             IsSoloed = IsSoloed,
             Color = Color,
             Filter = Filter,
+            SessionType = SessionType,
             AssignedSessionIds = AssignedSessions.Select(s => s.SessionId).ToList()
         };
     }
@@ -176,6 +186,25 @@ public partial class ChannelViewModel : ViewModelBase
         IsSoloed = config.IsSoloed;
         Color = config.Color;
         Filter = config.Filter;
+        SessionType = config.SessionType;
+        // Note: AssignedSessionIds are loaded separately via RelinkSessions method
+    }
+
+    /// <summary>
+    /// Relinks saved session IDs to actual AudioSessionInfo objects
+    /// </summary>
+    public void RelinkSessions(List<string> sessionIds, IEnumerable<AudioSessionInfo> availableSessions)
+    {
+        AssignedSessions.Clear();
+
+        foreach (var sessionId in sessionIds)
+        {
+            var session = availableSessions.FirstOrDefault(s => s.SessionId == sessionId);
+            if (session != null)
+            {
+                AssignedSessions.Add(session);
+            }
+        }
     }
 }
 

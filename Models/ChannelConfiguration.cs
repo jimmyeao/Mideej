@@ -44,6 +44,11 @@ public class ChannelConfiguration
     /// Color for the channel (hex format)
     /// </summary>
     public string Color { get; set; } = "#3B82F6";
+
+    /// <summary>
+    /// Type of the assigned session (if any)
+    /// </summary>
+    public AudioSessionType? SessionType { get; set; }
 }
 
 /// <summary>

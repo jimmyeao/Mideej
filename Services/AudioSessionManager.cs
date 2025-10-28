@@ -15,11 +15,16 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 {
     private MMDeviceEnumerator? _deviceEnumerator;
     private MMDevice? _defaultDevice;
+    private MMDevice? _defaultInputDevice;
     private SessionCollection? _sessionCollection;
     private readonly ConcurrentDictionary<string, SessionWrapper> _sessions = new();
+    private readonly Dictionary<string, MMDevice> _inputDevices = new();
+    private readonly Dictionary<string, MMDevice> _outputDevices = new();
     private DispatcherTimer? _vuMeterTimer;
     private bool _isMonitoring;
     private int _vuMeterInterval = 30;
+    private DateTime _lastSessionRefresh = DateTime.MinValue;
+    private const int SessionRefreshIntervalMs = 2000; // Refresh every 2 seconds
 
     public event EventHandler<AudioSessionChangedEventArgs>? SessionsChanged;
     public event EventHandler<SessionVolumeChangedEventArgs>? SessionVolumeChanged;
@@ -39,6 +44,86 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
         try
         {
+            // Add master output session
+            if (_defaultDevice != null)
+            {
+                sessions.Add(new AudioSessionInfo
+                {
+                    SessionId = "master_output",
+                    DisplayName = "Master Volume",
+                    ProcessName = "System",
+                    SessionType = AudioSessionType.Output,
+                    Volume = _defaultDevice.AudioEndpointVolume.MasterVolumeLevelScalar,
+                    IsMuted = _defaultDevice.AudioEndpointVolume.Mute,
+                    PeakLevel = _defaultDevice.AudioMeterInformation.MasterPeakValue
+                });
+            }
+
+            // Refresh and add input devices (microphones)
+            if (_deviceEnumerator != null)
+            {
+                try
+                {
+                    // Clear old cache and rebuild
+                    _inputDevices.Clear();
+                    var inputDevices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+                    foreach (var device in inputDevices)
+                    {
+                        var sessionId = $"input_{device.ID}";
+                        sessions.Add(new AudioSessionInfo
+                        {
+                            SessionId = sessionId,
+                            DisplayName = device.FriendlyName,
+                            ProcessName = "Microphone",
+                            SessionType = AudioSessionType.Input,
+                            Volume = device.AudioEndpointVolume.MasterVolumeLevelScalar,
+                            IsMuted = device.AudioEndpointVolume.Mute,
+                            PeakLevel = device.AudioMeterInformation.MasterPeakValue
+                        });
+
+                        // Cache the device for later use
+                        _inputDevices[sessionId] = device;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error enumerating input devices: {ex.Message}");
+                }
+            }
+
+            // Refresh and add output devices (speakers/headphones)
+            if (_deviceEnumerator != null)
+            {
+                try
+                {
+                    // Clear old cache and rebuild
+                    _outputDevices.Clear();
+                    var outputDevices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+                    foreach (var device in outputDevices)
+                    {
+                        var sessionId = $"output_{device.ID}";
+                        sessions.Add(new AudioSessionInfo
+                        {
+                            SessionId = sessionId,
+                            DisplayName = device.FriendlyName,
+                            ProcessName = "Audio Output",
+                            SessionType = AudioSessionType.Output,
+                            Volume = device.AudioEndpointVolume.MasterVolumeLevelScalar,
+                            IsMuted = device.AudioEndpointVolume.Mute,
+                            PeakLevel = device.AudioMeterInformation.MasterPeakValue
+                        });
+
+                        // Cache the device for later use
+                        _outputDevices[sessionId] = device;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error enumerating output devices: {ex.Message}");
+                }
+            }
+
+            // Add application sessions
             foreach (var wrapper in _sessions.Values)
             {
                 if (wrapper.Info != null)
@@ -59,11 +144,35 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     {
         try
         {
+            volume = Math.Clamp(volume, 0f, 1f);
+
+            // Handle master output
+            if (sessionId == "master_output" && _defaultDevice != null)
+            {
+                _defaultDevice.AudioEndpointVolume.MasterVolumeLevelScalar = volume;
+                return;
+            }
+
+            // Handle input devices
+            if (sessionId.StartsWith("input_") && _inputDevices.TryGetValue(sessionId, out var inputDevice))
+            {
+                inputDevice.AudioEndpointVolume.MasterVolumeLevelScalar = volume;
+                return;
+            }
+
+            // Handle output devices
+            if (sessionId.StartsWith("output_") && _outputDevices.TryGetValue(sessionId, out var outputDevice))
+            {
+                outputDevice.AudioEndpointVolume.MasterVolumeLevelScalar = volume;
+                return;
+            }
+
+            // Handle application sessions
             if (_sessions.TryGetValue(sessionId, out var wrapper))
             {
                 if (wrapper.VolumeControl != null)
                 {
-                    wrapper.VolumeControl.Volume = Math.Clamp(volume, 0f, 1f);
+                    wrapper.VolumeControl.Volume = volume;
                     wrapper.Info.Volume = volume;
                 }
             }
@@ -78,6 +187,28 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     {
         try
         {
+            // Handle master output
+            if (sessionId == "master_output" && _defaultDevice != null)
+            {
+                _defaultDevice.AudioEndpointVolume.Mute = isMuted;
+                return;
+            }
+
+            // Handle input devices
+            if (sessionId.StartsWith("input_") && _inputDevices.TryGetValue(sessionId, out var inputDevice))
+            {
+                inputDevice.AudioEndpointVolume.Mute = isMuted;
+                return;
+            }
+
+            // Handle output devices
+            if (sessionId.StartsWith("output_") && _outputDevices.TryGetValue(sessionId, out var outputDevice))
+            {
+                outputDevice.AudioEndpointVolume.Mute = isMuted;
+                return;
+            }
+
+            // Handle application sessions
             if (_sessions.TryGetValue(sessionId, out var wrapper))
             {
                 if (wrapper.VolumeControl != null)
@@ -97,6 +228,25 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     {
         try
         {
+            // Handle master output
+            if (sessionId == "master_output" && _defaultDevice != null)
+            {
+                return _defaultDevice.AudioMeterInformation.MasterPeakValue;
+            }
+
+            // Handle input devices
+            if (sessionId.StartsWith("input_") && _inputDevices.TryGetValue(sessionId, out var inputDevice))
+            {
+                return inputDevice.AudioMeterInformation.MasterPeakValue;
+            }
+
+            // Handle output devices
+            if (sessionId.StartsWith("output_") && _outputDevices.TryGetValue(sessionId, out var outputDevice))
+            {
+                return outputDevice.AudioMeterInformation.MasterPeakValue;
+            }
+
+            // Handle application sessions
             if (_sessions.TryGetValue(sessionId, out var wrapper))
             {
                 if (wrapper.MeterInfo != null)
@@ -191,6 +341,8 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             _sessionCollection = sessionManager.Sessions;
 
             var currentSessionIds = new HashSet<string>();
+            var newSessions = new List<string>();
+            var removedSessions = new List<string>();
 
             for (int i = 0; i < _sessionCollection.Count; i++)
             {
@@ -217,6 +369,8 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         };
 
                         _sessions.TryAdd(sessionId, wrapper);
+                        newSessions.Add(info.DisplayName);
+                        Console.WriteLine($"New audio session detected: {info.DisplayName} (PID: {processId})");
                     }
                     else
                     {
@@ -239,11 +393,18 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             var inactiveSessions = _sessions.Keys.Except(currentSessionIds).ToList();
             foreach (var sessionId in inactiveSessions)
             {
-                _sessions.TryRemove(sessionId, out _);
+                if (_sessions.TryRemove(sessionId, out var wrapper))
+                {
+                    removedSessions.Add(wrapper.Info.DisplayName);
+                    Console.WriteLine($"Audio session removed: {wrapper.Info.DisplayName}");
+                }
             }
 
-            // Notify listeners
-            NotifySessionsChanged();
+            // Only notify if there were changes
+            if (newSessions.Count > 0 || removedSessions.Count > 0)
+            {
+                NotifySessionsChanged();
+            }
         }
         catch (Exception ex)
         {
@@ -304,15 +465,60 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     {
         try
         {
-            // Periodically refresh session list
-            if (_sessions.Count == 0 || DateTime.Now.Second % 5 == 0)
+            // Periodically refresh session list (every 2 seconds)
+            var now = DateTime.Now;
+            if (_sessions.Count == 0 || (now - _lastSessionRefresh).TotalMilliseconds >= SessionRefreshIntervalMs)
             {
                 RefreshSessions();
+                _lastSessionRefresh = now;
             }
 
             // Update peak levels
             var peakLevels = new Dictionary<string, float>();
 
+            // Add master output peak level
+            if (_defaultDevice != null)
+            {
+                try
+                {
+                    var peakLevel = _defaultDevice.AudioMeterInformation.MasterPeakValue;
+                    peakLevels["master_output"] = peakLevel;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error updating master output peak level: {ex.Message}");
+                }
+            }
+
+            // Add input device peak levels
+            foreach (var kvp in _inputDevices)
+            {
+                try
+                {
+                    var peakLevel = kvp.Value.AudioMeterInformation.MasterPeakValue;
+                    peakLevels[kvp.Key] = peakLevel;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error updating input device peak level for {kvp.Key}: {ex.Message}");
+                }
+            }
+
+            // Add output device peak levels
+            foreach (var kvp in _outputDevices)
+            {
+                try
+                {
+                    var peakLevel = kvp.Value.AudioMeterInformation.MasterPeakValue;
+                    peakLevels[kvp.Key] = peakLevel;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error updating output device peak level for {kvp.Key}: {ex.Message}");
+                }
+            }
+
+            // Add application session peak levels
             foreach (var kvp in _sessions)
             {
                 try

@@ -38,10 +38,13 @@ public partial class MainWindowViewModel : ViewModelBase
     private string _statusMessage = "Ready";
 
     [ObservableProperty]
-    private bool _midiActivityIndicator;
+    private AppTheme _currentTheme = AppTheme.Dark;
 
     [ObservableProperty]
-    private AppTheme _currentTheme = AppTheme.Dark;
+    private double _windowWidth = 1200;
+
+    [ObservableProperty]
+    private double _windowHeight = 700;
 
     public ObservableCollection<ThemeOption> AvailableThemes { get; } = new()
 {
@@ -54,10 +57,16 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private ThemeOption? _selectedTheme;
+
     /// <summary>
     /// MIDI mappings: Key is (channel, controller), Value is the mapping
     /// </summary>
     private readonly Dictionary<(int channel, int controller), MidiMapping> _midiMappings = new();
+
+    /// <summary>
+    /// Stores channel configurations for relinking sessions after they're loaded
+    /// </summary>
+    private List<ChannelConfiguration> _pendingChannelConfigs = new();
 
     /// <summary>
     /// Available MIDI devices
@@ -132,6 +141,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         SelectedTheme = AvailableThemes.FirstOrDefault(t => t.Name == "DarkTheme");
         ApplyTheme(SelectedTheme);
+        UpdateWindowSize();
     }
     partial void OnSelectedThemeChanged(ThemeOption? value)
     {
@@ -291,6 +301,21 @@ public partial class MainWindowViewModel : ViewModelBase
         };
         SubscribeToChannelEvents(newChannel);
         Channels.Add(newChannel);
+        UpdateWindowSize();
+    }
+
+    /// <summary>
+    /// Calculates and updates window size based on number of channels
+    /// </summary>
+    private void UpdateWindowSize()
+    {
+        const int channelWidth = 144; // 140px channel + 4px margin
+        const int windowChrome = 60; // Extra space for window padding and borders
+        const int minChannels = 4;
+        const int maxChannels = 16;
+
+        int channelCount = Math.Max(minChannels, Math.Min(Channels.Count, maxChannels));
+        WindowWidth = (channelCount * channelWidth) + windowChrome;
     }
 
     private void SubscribeToChannelEvents(ChannelViewModel channel)
@@ -299,6 +324,7 @@ public partial class MainWindowViewModel : ViewModelBase
         channel.MuteChanged += OnChannelMuteChanged;
         channel.SoloChanged += OnChannelSoloChanged;
         channel.MappingModeRequested += OnChannelMappingModeRequested;
+        channel.SessionAssignmentRequested += OnChannelSessionAssignmentRequested;
     }
 
     private void OnChannelMappingModeRequested(object? sender, MappingTypeRequestedEventArgs e)
@@ -329,7 +355,80 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void OnChannelSoloChanged(object? sender, EventArgs e)
     {
+        if (sender is ChannelViewModel soloedChannel && soloedChannel.IsSoloed)
+        {
+            // Exclusive solo - unsolo all other channels
+            foreach (var channel in Channels)
+            {
+                if (channel != soloedChannel && channel.IsSoloed)
+                {
+                    channel.IsSoloed = false;
+
+                    // Turn off the LED for the unsoloed channel
+                    SendSoloLedFeedback(channel, false);
+                }
+            }
+
+            // Turn on the LED for the newly soloed channel
+            SendSoloLedFeedback(soloedChannel, true);
+        }
+        else if (sender is ChannelViewModel unsuloedChannel && !unsuloedChannel.IsSoloed)
+        {
+            // User manually turned off solo - turn off LED
+            SendSoloLedFeedback(unsuloedChannel, false);
+        }
+
         ApplySoloLogic();
+    }
+
+    /// <summary>
+    /// Sends LED feedback to MIDI controller for solo button state
+    /// </summary>
+    private void SendSoloLedFeedback(ChannelViewModel channel, bool isOn)
+    {
+        if (_midiService == null) return;
+
+        // Find the MIDI mapping for this channel's solo button
+        foreach (var kvp in _midiMappings)
+        {
+            var mapping = kvp.Value;
+            if (mapping.TargetChannelIndex == channel.Index && mapping.ControlType == MidiControlType.Solo)
+            {
+                // Send LED feedback (on=127, off=0)
+                _midiService.SendNoteOn(mapping.Channel, mapping.ControlNumber, isOn ? 127 : 0);
+                Console.WriteLine($"Solo LED feedback sent for {channel.Name}: {(isOn ? "ON" : "OFF")}");
+                break;
+            }
+        }
+    }
+
+    private void OnChannelSessionAssignmentRequested(object? sender, EventArgs e)
+    {
+        if (sender is not ChannelViewModel channel) return;
+
+        // Open the session assignment dialog
+        var dialog = new SessionAssignmentDialog(AvailableSessions)
+        {
+            Owner = Application.Current.MainWindow
+        };
+
+        if (dialog.ShowDialog() == true && dialog.SelectedSession != null)
+        {
+            // Clear existing session assignments (single session per channel)
+            channel.AssignedSessions.Clear();
+
+            // Assign the selected session
+            channel.AssignedSessions.Add(dialog.SelectedSession);
+
+            // Update channel name and type to show the session info
+            channel.Name = dialog.SelectedSession.DisplayName;
+            channel.SessionType = dialog.SelectedSession.SessionType;
+
+            StatusMessage = $"Assigned '{dialog.SelectedSession.DisplayName}' to Channel {channel.Index + 1}";
+
+            // Save configuration
+            _ = SaveConfigurationAsync();
+        }
     }
 
     [RelayCommand]
@@ -341,15 +440,13 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             Channels[i].Index = i;
         }
+        UpdateWindowSize();
     }
 
     private void OnMidiControlChange(object? sender, MidiControlChangeEventArgs e)
     {
         // Debug: Show we received a MIDI message
         Console.WriteLine($"MIDI CC: Ch{e.Channel} CC{e.Controller} Val{e.Value}");
-
-        // Visual feedback - flash activity indicator
-        FlashMidiActivity($"MIDI CC: Ch{e.Channel} CC#{e.Controller} = {e.Value}");
 
         // Handle MIDI CC messages
         if (IsMappingModeActive && ChannelAwaitingMapping != null)
@@ -374,28 +471,10 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private async void FlashMidiActivity(string message)
-    {
-        MidiActivityIndicator = true;
-        var previousMessage = StatusMessage;
-        StatusMessage = $"🎵 {message}";
-
-        await Task.Delay(500);
-
-        MidiActivityIndicator = false;
-        if (!IsMappingModeActive)
-        {
-            StatusMessage = previousMessage;
-        }
-    }
-
     private void OnMidiNoteOn(object? sender, MidiNoteEventArgs e)
     {
         // Debug: Show we received a MIDI note message
         Console.WriteLine($"MIDI Note On: Ch{e.Channel} Note#{e.NoteNumber} Vel{e.Velocity}");
-
-        // Visual feedback
-        FlashMidiActivity($"MIDI Note On: Ch{e.Channel} Note#{e.NoteNumber}");
 
         // Handle MIDI note messages (buttons)
         if (IsMappingModeActive && ChannelAwaitingMapping != null)
@@ -430,9 +509,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
         Console.WriteLine($"MIDI Pitch Bend: Ch{e.Channel} RawValue={e.Value} Display={value127}/127 Volume={volumePercent:F1}%");
         Console.WriteLine($"  IsMappingModeActive={IsMappingModeActive}, ChannelAwaitingMapping={ChannelAwaitingMapping?.Name ?? "null"}");
-
-        // Visual feedback
-        FlashMidiActivity($"MIDI Fader: Ch{e.Channel + 1} = {value127}/127");
 
         // In Mackie mode, the fader channel directly corresponds to the mixer channel (1-8)
         // So channel 0 = Channel 1, channel 1 = Channel 2, etc.
@@ -587,6 +663,23 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (_audioSessionManager == null) return;
 
+        // Check if any channel is currently soloed
+        var soloedChannel = Channels.FirstOrDefault(c => c.IsSoloed);
+
+        if (soloedChannel != null)
+        {
+            // Solo mode is active - only allow mute changes on the soloed channel
+            // Non-soloed channels must remain muted regardless of their IsMuted flag
+            if (channel != soloedChannel)
+            {
+                // Don't apply mute changes to non-soloed channels
+                // They should stay muted due to solo mode
+                Console.WriteLine($"Mute toggle ignored for {channel.Name} - {soloedChannel.Name} is soloed");
+                return;
+            }
+        }
+
+        // Apply the mute change
         foreach (var session in channel.AssignedSessions)
         {
             _audioSessionManager.SetSessionMute(session.SessionId, channel.IsMuted);
@@ -623,6 +716,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
         foreach (var session in channel.AssignedSessions)
         {
+            // Don't mute master volume during solo
+            if (session.SessionId == "master_output")
+            {
+                continue;
+            }
+
             _audioSessionManager.SetSessionMute(session.SessionId, isMuted);
         }
     }
@@ -639,6 +738,30 @@ public partial class MainWindowViewModel : ViewModelBase
         foreach (var session in e.Sessions)
         {
             AvailableSessions.Add(session);
+        }
+
+        // Relink channel sessions if we have pending configs
+        if (_pendingChannelConfigs.Count > 0)
+        {
+            RelinkChannelSessions();
+        }
+    }
+
+    /// <summary>
+    /// Relinks channel sessions from saved configuration to actual audio session objects
+    /// </summary>
+    private void RelinkChannelSessions()
+    {
+        for (int i = 0; i < Channels.Count && i < _pendingChannelConfigs.Count; i++)
+        {
+            var channel = Channels[i];
+            var config = _pendingChannelConfigs[i];
+
+            if (config.AssignedSessionIds.Count > 0)
+            {
+                channel.RelinkSessions(config.AssignedSessionIds, AvailableSessions);
+                Console.WriteLine($"Relinked {channel.AssignedSessions.Count} sessions to {channel.Name}");
+            }
         }
     }
 
@@ -769,6 +892,8 @@ public partial class MainWindowViewModel : ViewModelBase
 
             // Load channels from configuration
             Channels.Clear();
+            _pendingChannelConfigs = settings.Channels;
+
             foreach (var channelConfig in settings.Channels)
             {
                 var channelVm = new ChannelViewModel();
@@ -776,6 +901,15 @@ public partial class MainWindowViewModel : ViewModelBase
                 SubscribeToChannelEvents(channelVm);
                 Channels.Add(channelVm);
             }
+
+            // Relink sessions if available
+            if (AvailableSessions.Count > 0)
+            {
+                RelinkChannelSessions();
+            }
+
+            // Update window size based on loaded channels
+            UpdateWindowSize();
 
             // Load MIDI mappings
             _midiMappings.Clear();
@@ -789,6 +923,12 @@ public partial class MainWindowViewModel : ViewModelBase
             if (!string.IsNullOrEmpty(settings.SelectedMidiDevice))
             {
                 SelectedMidiDevice = AvailableMidiDevices.FirstOrDefault(d => d.Name == settings.SelectedMidiDevice);
+
+                // Auto-connect if device is available
+                if (SelectedMidiDevice != null)
+                {
+                    await ConnectMidiDevice();
+                }
             }
 
             StatusMessage = $"Loaded {_midiMappings.Count} MIDI mappings";
