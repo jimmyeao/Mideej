@@ -159,4 +159,112 @@ public class ConfigurationService : IConfigurationService
             throw;
         }
     }
+
+    public async Task ExportControllerConfigAsync(string filePath, string controllerName, bool includeChannels = false)
+    {
+        try
+        {
+            var config = new ControllerConfig
+            {
+                ControllerName = controllerName,
+                MidiMappings = new List<MidiMapping>(_currentSettings.MidiMappings),
+                Channels = includeChannels ? new List<ChannelConfiguration>(_currentSettings.Channels) : null,
+                ModifiedAt = DateTime.UtcNow
+            };
+
+            var options = new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            };
+            var json = JsonSerializer.Serialize(config, options);
+            await File.WriteAllTextAsync(filePath, json);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error exporting controller config: {ex.Message}");
+            throw;
+        }
+    }
+
+    public async Task<ControllerConfig> ImportControllerConfigAsync(string filePath)
+    {
+        try
+        {
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException("Controller config file not found", filePath);
+
+            var json = await File.ReadAllTextAsync(filePath);
+            var config = JsonSerializer.Deserialize<ControllerConfig>(json);
+
+            if (config == null)
+                throw new InvalidOperationException("Failed to deserialize controller config");
+
+            return config;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error importing controller config: {ex.Message}");
+            throw;
+        }
+    }
+
+    public void ApplyControllerConfig(ControllerConfig config, bool replaceExisting = true, bool applyChannels = false)
+    {
+        if (config == null)
+            throw new ArgumentNullException(nameof(config));
+
+        // Handle MIDI mappings
+        if (replaceExisting)
+        {
+            _currentSettings.MidiMappings = new List<MidiMapping>(config.MidiMappings);
+        }
+        else
+        {
+            // Merge: only add mappings that don't conflict with existing ones
+            foreach (var mapping in config.MidiMappings)
+            {
+                var existingMapping = _currentSettings.MidiMappings.FirstOrDefault(m =>
+                    m.Channel == mapping.Channel && m.ControlNumber == mapping.ControlNumber);
+
+                if (existingMapping != null)
+                {
+                    // Update existing mapping
+                    var index = _currentSettings.MidiMappings.IndexOf(existingMapping);
+                    _currentSettings.MidiMappings[index] = mapping;
+                }
+                else
+                {
+                    // Add new mapping
+                    _currentSettings.MidiMappings.Add(mapping);
+                }
+            }
+        }
+
+        // Handle channel configurations if requested
+        if (applyChannels && config.Channels != null)
+        {
+            if (replaceExisting)
+            {
+                _currentSettings.Channels = new List<ChannelConfiguration>(config.Channels);
+            }
+            else
+            {
+                // Merge: update channels by index
+                foreach (var channel in config.Channels)
+                {
+                    var existingChannel = _currentSettings.Channels.FirstOrDefault(c => c.Index == channel.Index);
+                    if (existingChannel != null)
+                    {
+                        var index = _currentSettings.Channels.IndexOf(existingChannel);
+                        _currentSettings.Channels[index] = channel;
+                    }
+                    else
+                    {
+                        _currentSettings.Channels.Add(channel);
+                    }
+                }
+            }
+        }
+    }
 }

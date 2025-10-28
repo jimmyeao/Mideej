@@ -124,6 +124,16 @@
                                 Command="{Binding RefreshMidiDevicesCommand}"
                                 Style="{StaticResource IconButton}"
                                 ToolTip="Refresh MIDI Devices"/>
+                        <Button Content="📤"
+                                Command="{Binding ExportControllerConfigCommand}"
+                                Style="{StaticResource IconButton}"
+                                ToolTip="Export Controller Config"
+                                Margin="4,0,0,0"/>
+                        <Button Content="📥"
+                                Command="{Binding ImportControllerConfigCommand}"
+                                Style="{StaticResource IconButton}"
+                                ToolTip="Import Controller Config"
+                                Margin="4,0,0,0"/>
                     </StackPanel>
 
                     <!-- Right Side Controls -->

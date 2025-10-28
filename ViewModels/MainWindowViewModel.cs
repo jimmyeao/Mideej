@@ -356,6 +356,107 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void TransportPrevious() => PerformTransportAction(MidiControlType.TransportPrevious);
 
+    [RelayCommand]
+    private async Task ExportControllerConfig()
+    {
+        try
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "Controller Config (*.json)|*.json",
+                DefaultExt = "json",
+                FileName = $"controller-config-{DateTime.Now:yyyy-MM-dd}.json"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                var controllerName = SelectedMidiDevice?.Name ?? "Unknown Controller";
+                await _configurationService.ExportControllerConfigAsync(dialog.FileName, controllerName, includeChannels: true);
+                StatusMessage = $"✓ Controller config exported to {System.IO.Path.GetFileName(dialog.FileName)}";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"✗ Export failed: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task ImportControllerConfig()
+    {
+        try
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Filter = "Controller Config (*.json)|*.json|All Files (*.*)|*.*",
+                DefaultExt = "json"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                var config = await _configurationService.ImportControllerConfigAsync(dialog.FileName);
+                
+                var result = MessageBox.Show(
+                    $"Import controller config '{config.ControllerName}'?\n\n" +
+                    $"MIDI Mappings: {config.MidiMappings.Count}\n" +
+                    $"Channels: {config.Channels?.Count ?? 0}\n\n" +
+                    "Replace existing mappings?",
+                    "Import Controller Config",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Cancel)
+                    return;
+
+                bool replaceExisting = result == MessageBoxResult.Yes;
+                
+                // Ask about channels if config contains them
+                bool applyChannels = false;
+                if (config.Channels != null && config.Channels.Count > 0)
+                {
+                    var channelResult = MessageBox.Show(
+                        "Import channel configurations too?",
+                        "Import Channels",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+                    applyChannels = channelResult == MessageBoxResult.Yes;
+                }
+
+                _configurationService.ApplyControllerConfig(config, replaceExisting, applyChannels);
+                
+                // Reload mappings and channels from updated settings
+                _midiMappings.Clear();
+                foreach (var mapping in _configurationService.CurrentSettings.MidiMappings)
+                {
+                    var key = (mapping.Channel, mapping.ControlNumber);
+                    _midiMappings[key] = mapping;
+                }
+
+                if (applyChannels && config.Channels != null)
+                {
+                    Channels.Clear();
+                    foreach (var channelConfig in _configurationService.CurrentSettings.Channels)
+                    {
+                        var channelVm = new ChannelViewModel();
+                        channelVm.LoadConfiguration(channelConfig);
+                        SubscribeToChannelEvents(channelVm);
+                        Channels.Add(channelVm);
+                    }
+                    UpdateWindowSize();
+                }
+
+                await _configurationService.SaveCurrentSettingsAsync();
+                
+                StatusMessage = $"✓ Imported {_midiMappings.Count} mappings from '{config.ControllerName}'";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"✗ Import failed: {ex.Message}";
+            MessageBox.Show($"Failed to import controller config:\n{ex.Message}", "Import Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     // helper to open the context menu from Map button (bind via EventSetter in XAML if needed)
     [RelayCommand]
     private void ShowTransportMapMenu(object parameter)

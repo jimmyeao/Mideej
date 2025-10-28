@@ -56,4 +56,19 @@ public interface IConfigurationService
     /// Imports settings from a file
     /// </summary>
     Task<AppSettings> ImportSettingsAsync(string filePath);
+
+    /// <summary>
+    /// Exports controller configuration to a file
+    /// </summary>
+    Task ExportControllerConfigAsync(string filePath, string controllerName, bool includeChannels = false);
+
+    /// <summary>
+    /// Imports controller configuration from a file
+    /// </summary>
+    Task<ControllerConfig> ImportControllerConfigAsync(string filePath);
+
+    /// <summary>
+    /// Applies an imported controller configuration to current settings
+    /// </summary>
+    void ApplyControllerConfig(ControllerConfig config, bool replaceExisting = true, bool applyChannels = false);
 }
