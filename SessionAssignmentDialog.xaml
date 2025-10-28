@@ -6,10 +6,10 @@
         xmlns:models="clr-namespace:Mideej.Models"
         mc:Ignorable="d"
         Title="Assign Audio Session"
-        Height="600"
-        Width="500"
-        MinHeight="400"
-        MinWidth="400"
+        Height="650"
+        Width="550"
+        MinHeight="500"
+        MinWidth="500"
         Background="{DynamicResource BackgroundBrush}"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -51,74 +51,218 @@
             <Grid Grid.Row="1" Margin="20">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
                 <!-- Instructions -->
                 <TextBlock Grid.Row="0"
-                           Text="Select an audio session to assign to this channel:"
+                           Text="Select audio sessions to assign to this channel:"
                            Style="{StaticResource LabelTextBlock}"
                            Margin="0,0,0,12"/>
 
-                <!-- Sessions List -->
-                <ScrollViewer Grid.Row="1"
+                <!-- Special Options -->
+                <Border Grid.Row="1"
+                        Style="{StaticResource Card}"
+                        Padding="12"
+                        Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Special Options"
+                                   Style="{StaticResource LabelTextBlock}"
+                                   FontWeight="Bold"
+                                   Margin="0,0,0,8"/>
+
+                        <CheckBox Content="🎯 Focused App (Auto-follow active window)"
+                                  IsChecked="{Binding IsFocusedAppSelected}"
+                                  Foreground="{DynamicResource TextBrush}"
+                                  Margin="0,0,0,8"/>
+
+                        <CheckBox Content="📦 Unmapped Applications (All unassigned apps)"
+                                  IsChecked="{Binding IsUnmappedAppsSelected}"
+                                  Foreground="{DynamicResource TextBrush}"
+                                  Margin="0,0,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Available Sessions Header -->
+                <TextBlock Grid.Row="2"
+                           Text="Available Sessions"
+                           Style="{StaticResource LabelTextBlock}"
+                           FontWeight="Bold"
+                           Margin="0,0,0,8"/>
+
+                <!-- Sessions List (Grouped) -->
+                <ScrollViewer Grid.Row="3"
                               VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding AvailableSessions}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type models:AudioSessionInfo}">
-                                <Border Style="{StaticResource Card}"
-                                        Margin="0,0,0,8"
-                                        Padding="12"
-                                        Cursor="Hand"
-                                        MouseLeftButtonDown="SessionItem_Click"
-                                        Tag="{Binding}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <!-- Master/Output Section -->
+                        <TextBlock Text="SYSTEM"
+                                   Style="{StaticResource SubtitleTextBlock}"
+                                   FontWeight="Bold"
+                                   FontSize="10"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   Margin="0,0,0,4"/>
+                        <ItemsControl ItemsSource="{Binding MasterAndOutputSessions}"
+                                      Margin="0,0,0,12">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type models:AudioSessionInfo}">
+                                    <Border Style="{StaticResource Card}"
+                                            Margin="0,0,0,4"
+                                            Padding="8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
 
-                                        <!-- Icon/Type Indicator -->
-                                        <Border Grid.Column="0"
-                                                Width="40"
-                                                Height="40"
-                                                CornerRadius="8"
-                                                Background="{DynamicResource AccentBrush}"
-                                                Margin="0,0,12,0">
-                                            <TextBlock Text="{Binding SessionType, Converter={StaticResource SessionTypeIconConverter}}"
-                                                       FontSize="20"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"/>
-                                        </Border>
+                                            <CheckBox Grid.Column="0"
+                                                      IsChecked="{Binding IsSelected}"
+                                                      VerticalAlignment="Center"
+                                                      Foreground="{DynamicResource TextBrush}"
+                                                      Margin="0,0,12,0"/>
 
-                                        <!-- Session Info -->
-                                        <StackPanel Grid.Column="1"
-                                                    VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding DisplayName}"
+                                            <Border Grid.Column="1"
+                                                    Width="32"
+                                                    Height="32"
+                                                    CornerRadius="6"
+                                                    Background="{DynamicResource AccentBrush}"
+                                                    Margin="0,0,12,0">
+                                                <TextBlock Text="{Binding SessionType, Converter={StaticResource SessionTypeIconConverter}}"
+                                                           FontSize="16"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+
+                                            <StackPanel Grid.Column="2"
+                                                        VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                           Style="{StaticResource LabelTextBlock}"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="13"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding ProcessName}"
+                                                           Style="{StaticResource SubtitleTextBlock}"
+                                                           FontSize="10"
+                                                           Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Input Devices Section -->
+                        <TextBlock Text="INPUT DEVICES"
+                                   Style="{StaticResource SubtitleTextBlock}"
+                                   FontWeight="Bold"
+                                   FontSize="10"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   Margin="0,0,0,4"
+                                   Visibility="{Binding HasInputDevices, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                        <ItemsControl ItemsSource="{Binding InputDeviceSessions}"
+                                      Margin="0,0,0,12"
+                                      Visibility="{Binding HasInputDevices, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type models:AudioSessionInfo}">
+                                    <Border Style="{StaticResource Card}"
+                                            Margin="0,0,0,4"
+                                            Padding="8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <CheckBox Grid.Column="0"
+                                                      IsChecked="{Binding IsSelected}"
+                                                      VerticalAlignment="Center"
+                                                      Foreground="{DynamicResource TextBrush}"
+                                                      Margin="0,0,12,0"/>
+
+                                            <Border Grid.Column="1"
+                                                    Width="32"
+                                                    Height="32"
+                                                    CornerRadius="6"
+                                                    Background="{DynamicResource AccentBrush}"
+                                                    Margin="0,0,12,0">
+                                                <TextBlock Text="🎤"
+                                                           FontSize="16"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding DisplayName}"
                                                        Style="{StaticResource LabelTextBlock}"
-                                                       FontWeight="Bold"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="13"
+                                                       VerticalAlignment="Center"
                                                        TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Text="{Binding ProcessName}"
-                                                       Style="{StaticResource SubtitleTextBlock}"
-                                                       FontSize="11"
-                                                       Margin="0,2,0,0"/>
-                                        </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
-                                        <!-- Session Type Badge -->
-                                        <Border Grid.Column="2"
-                                                Background="{DynamicResource SurfaceBrush}"
-                                                CornerRadius="4"
-                                                Padding="8,4">
-                                            <TextBlock Text="{Binding SessionType}"
-                                                       Style="{StaticResource SubtitleTextBlock}"
-                                                       FontSize="10"/>
-                                        </Border>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                        <!-- Applications Section -->
+                        <TextBlock Text="APPLICATIONS"
+                                   Style="{StaticResource SubtitleTextBlock}"
+                                   FontWeight="Bold"
+                                   FontSize="10"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   Margin="0,0,0,4"/>
+                        <ItemsControl ItemsSource="{Binding ApplicationSessions}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type models:AudioSessionInfo}">
+                                    <Border Style="{StaticResource Card}"
+                                            Margin="0,0,0,4"
+                                            Padding="8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <CheckBox Grid.Column="0"
+                                                      IsChecked="{Binding IsSelected}"
+                                                      VerticalAlignment="Center"
+                                                      Foreground="{DynamicResource TextBrush}"
+                                                      Margin="0,0,12,0"/>
+
+                                            <Border Grid.Column="1"
+                                                    Width="32"
+                                                    Height="32"
+                                                    CornerRadius="6"
+                                                    Background="{DynamicResource AccentBrush}"
+                                                    Margin="0,0,12,0">
+                                                <TextBlock Text="🎵"
+                                                           FontSize="16"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+
+                                            <StackPanel Grid.Column="2"
+                                                        VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                           Style="{StaticResource LabelTextBlock}"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="13"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding ProcessName}"
+                                                           Style="{StaticResource SubtitleTextBlock}"
+                                                           FontSize="10"
+                                                           Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </ScrollViewer>
             </Grid>
 
@@ -129,13 +273,18 @@
                     BorderThickness="0,1,0,0"
                     CornerRadius="0,0,12,12"
                     Padding="20,12">
-                <Grid>
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right">
+                    <Button Content="Apply"
+                            Style="{StaticResource ModernButton}"
+                            Click="ApplyButton_Click"
+                            Width="100"
+                            Margin="0,0,12,0"/>
                     <Button Content="Cancel"
                             Style="{StaticResource ModernButton}"
                             Click="CancelButton_Click"
-                            HorizontalAlignment="Right"
                             Width="100"/>
-                </Grid>
+                </StackPanel>
             </Border>
         </Grid>
     </Border>

@@ -1,10 +1,16 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+
 namespace Mideej.Models;
 
 /// <summary>
 /// Represents information about an audio session
 /// </summary>
-public class AudioSessionInfo
+public class AudioSessionInfo : INotifyPropertyChanged
 {
+    private bool _isSelected;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
     /// <summary>
     /// Unique identifier for the session
     /// </summary>
@@ -49,6 +55,27 @@ public class AudioSessionInfo
     /// Type of audio session
     /// </summary>
     public AudioSessionType SessionType { get; set; }
+
+    /// <summary>
+    /// Whether this session is selected in the UI
+    /// </summary>
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            if (_isSelected != value)
+            {
+                _isSelected = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
 }
 
 /// <summary>

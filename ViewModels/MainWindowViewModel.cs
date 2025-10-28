@@ -406,25 +406,48 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (sender is not ChannelViewModel channel) return;
 
-        // Open the session assignment dialog
-        var dialog = new SessionAssignmentDialog(AvailableSessions)
+        // Build list of already mapped session IDs
+        var mappedSessionIds = new HashSet<string>();
+        foreach (var ch in Channels)
+        {
+            foreach (var session in ch.AssignedSessions)
+            {
+                mappedSessionIds.Add(session.SessionId);
+            }
+        }
+
+        // Open the session assignment dialog with multi-selection support
+        var dialog = new SessionAssignmentDialog(AvailableSessions, mappedSessionIds)
         {
             Owner = Application.Current.MainWindow
         };
 
-        if (dialog.ShowDialog() == true && dialog.SelectedSession != null)
+        if (dialog.ShowDialog() == true && dialog.SelectedSessions.Count > 0)
         {
-            // Clear existing session assignments (single session per channel)
+            // Clear existing session assignments
             channel.AssignedSessions.Clear();
 
-            // Assign the selected session
-            channel.AssignedSessions.Add(dialog.SelectedSession);
+            // Assign all selected sessions
+            foreach (var session in dialog.SelectedSessions)
+            {
+                channel.AssignedSessions.Add(session);
+            }
 
-            // Update channel name and type to show the session info
-            channel.Name = dialog.SelectedSession.DisplayName;
-            channel.SessionType = dialog.SelectedSession.SessionType;
+            // Update channel name based on selection
+            if (dialog.SelectedSessions.Count == 1)
+            {
+                var session = dialog.SelectedSessions[0];
+                channel.Name = session.DisplayName;
+                channel.SessionType = session.SessionType;
+            }
+            else
+            {
+                // Multiple sessions assigned
+                channel.Name = $"{dialog.SelectedSessions.Count} Sessions";
+                channel.SessionType = dialog.SelectedSessions[0].SessionType;
+            }
 
-            StatusMessage = $"Assigned '{dialog.SelectedSession.DisplayName}' to Channel {channel.Index + 1}";
+            StatusMessage = $"Assigned {dialog.SelectedSessions.Count} session(s) to Channel {channel.Index + 1}";
 
             // Save configuration
             _ = SaveConfigurationAsync();
