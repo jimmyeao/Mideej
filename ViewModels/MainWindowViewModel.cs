@@ -361,16 +361,19 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         try
         {
+            var controllerName = SelectedMidiDevice?.Name ?? "Unknown-Controller";
+            var dateString = DateTime.Now.ToString("dd-MM-yyyy");
+            var fileName = $"{controllerName}-{dateString}.json";
+            
             var dialog = new Microsoft.Win32.SaveFileDialog
             {
                 Filter = "Controller Config (*.json)|*.json",
                 DefaultExt = "json",
-                FileName = $"controller-config-{DateTime.Now:yyyy-MM-dd}.json"
+                FileName = fileName
             };
 
             if (dialog.ShowDialog() == true)
             {
-                var controllerName = SelectedMidiDevice?.Name ?? "Unknown Controller";
                 await _configurationService.ExportControllerConfigAsync(dialog.FileName, controllerName, includeChannels: true);
                 StatusMessage = $"✓ Controller config exported to {System.IO.Path.GetFileName(dialog.FileName)}";
             }
