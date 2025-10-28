@@ -6,7 +6,7 @@
              xmlns:local="clr-namespace:Mideej.Controls"
              mc:Ignorable="d"
              d:DesignHeight="450"
-             Width="140">
+             Width="146">
     <Grid>
         <!-- Main Channel Card -->
         <Border Style="{StaticResource Card}" Margin="4,4,0,4">
@@ -27,29 +27,39 @@
                     </Grid.RowDefinitions>
 
                     <!-- Session Icon and Name -->
-                    <StackPanel Grid.Row="0"
-                                Orientation="Horizontal"
-                                HorizontalAlignment="Center">
-                        <TextBlock Text="{Binding SessionType, Converter={StaticResource SessionTypeIconConverter}}"
-                                   FontSize="14"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,4,0"
-                                   Visibility="{Binding SessionType, Converter={StaticResource BoolToVisibilityConverter}}"/>
-                        <TextBlock Text="{Binding Name}"
-                                   Style="{StaticResource LabelTextBlock}"
-                                   TextAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis"/>
-                    </StackPanel>
+                    <Grid Grid.Row="0" HorizontalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
 
-                    <Button Grid.Row="1"
+                        <TextBlock Grid.Column="0"
+               Text="{Binding SessionType, Converter={StaticResource SessionTypeIconConverter}}"
+               FontSize="14"
+               VerticalAlignment="Center"
+               Margin="0,0,4,0"
+               Visibility="{Binding SessionType, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                        <TextBlock Grid.Column="1"
+               Text="{Binding Name}"
+               Style="{StaticResource LabelTextBlock}"
+               TextAlignment="Center"
+               TextWrapping="Wrap"
+               VerticalAlignment="Center"
+               TextTrimming="CharacterEllipsis"
+               MaxWidth="200"/>
+                    </Grid>
+
+
+
+                    <Button
                             Content="Assign..."
                             Style="{StaticResource IconButton}"
                             Command="{Binding AssignSessionCommand}"
                             FontSize="10"
-                            Height="22"
-                            Margin="8,4,8,0"
-                            ToolTip="Assign audio session to this channel"/>
+                            Height="NaN"
+                            Margin="21,26,21,0"
+                            ToolTip="Assign audio session to this channel" Grid.RowSpan="2" Click="Button_Click" Width="60"/>
                 </Grid>
 
                 <!-- VU Meter and Slider Container -->

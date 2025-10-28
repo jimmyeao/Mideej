@@ -11,4 +11,9 @@ public partial class ChannelControl : UserControl
     {
         InitializeComponent();
     }
+
+    private void Button_Click(object sender, System.Windows.RoutedEventArgs e)
+    {
+
+    }
 }
