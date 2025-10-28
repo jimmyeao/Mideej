@@ -86,6 +86,11 @@ public partial class ChannelViewModel : ViewModelBase
     /// </summary>
     public event EventHandler? SessionAssignmentRequested;
 
+    /// <summary>
+    /// Event fired when user clears all sessions from this channel
+    /// </summary>
+    public event EventHandler? SessionCleared;
+
     partial void OnVolumeChanged(float value)
     {
         // Clamp volume between 0 and 1
@@ -137,6 +142,18 @@ public partial class ChannelViewModel : ViewModelBase
     {
         // Fire event so MainWindowViewModel can handle showing the dialog
         SessionAssignmentRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void ClearSession()
+    {
+        // Clear all assigned sessions
+        AssignedSessions.Clear();
+        Name = $"Channel {Index + 1}";
+        SessionType = null;
+
+        // Fire event to notify MainWindowViewModel
+        SessionCleared?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]

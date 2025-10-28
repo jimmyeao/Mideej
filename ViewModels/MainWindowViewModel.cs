@@ -325,6 +325,7 @@ public partial class MainWindowViewModel : ViewModelBase
         channel.SoloChanged += OnChannelSoloChanged;
         channel.MappingModeRequested += OnChannelMappingModeRequested;
         channel.SessionAssignmentRequested += OnChannelSessionAssignmentRequested;
+        channel.SessionCleared += OnChannelSessionCleared;
     }
 
     private void OnChannelMappingModeRequested(object? sender, MappingTypeRequestedEventArgs e)
@@ -424,12 +425,34 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (dialog.ShowDialog() == true && dialog.SelectedSessions.Count > 0)
         {
-            // Clear existing session assignments
+            // Clear existing session assignments from THIS channel
             channel.AssignedSessions.Clear();
 
-            // Assign all selected sessions
+            // For each selected session, remove it from any other channels (exclusive mapping)
             foreach (var session in dialog.SelectedSessions)
             {
+                // Remove this session from all OTHER channels
+                foreach (var otherChannel in Channels)
+                {
+                    if (otherChannel != channel)
+                    {
+                        var existingSession = otherChannel.AssignedSessions.FirstOrDefault(s => s.SessionId == session.SessionId);
+                        if (existingSession != null)
+                        {
+                            otherChannel.AssignedSessions.Remove(existingSession);
+                            Console.WriteLine($"Removed '{session.DisplayName}' from {otherChannel.Name} (exclusive mapping)");
+
+                            // Reset channel name if it has no more sessions
+                            if (otherChannel.AssignedSessions.Count == 0)
+                            {
+                                otherChannel.Name = $"Channel {otherChannel.Index + 1}";
+                                otherChannel.SessionType = null;
+                            }
+                        }
+                    }
+                }
+
+                // Now assign to the target channel
                 channel.AssignedSessions.Add(session);
             }
 
@@ -449,6 +472,19 @@ public partial class MainWindowViewModel : ViewModelBase
 
             StatusMessage = $"Assigned {dialog.SelectedSessions.Count} session(s) to Channel {channel.Index + 1}";
 
+            // Apply solo logic to ensure newly assigned sessions respect current solo state
+            ApplySoloLogic();
+
+            // Save configuration
+            _ = SaveConfigurationAsync();
+        }
+    }
+
+    private void OnChannelSessionCleared(object? sender, EventArgs e)
+    {
+        if (sender is ChannelViewModel channel)
+        {
+            StatusMessage = $"Cleared sessions from Channel {channel.Index + 1}";
             // Save configuration
             _ = SaveConfigurationAsync();
         }

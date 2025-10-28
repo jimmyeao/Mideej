@@ -6,3 +6,5 @@
 6. Add option to change font size
 7. premade mappings for popular midi controllers
 8. Software Mute button should toggle Mute LED on Controller
+9. Prevent "soloing" the master volume
+10. Occasionally AUdio Sessiosn are refreshed whihc causes the session to stop working on the mixer

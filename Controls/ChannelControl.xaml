@@ -52,14 +52,26 @@
 
 
 
-                    <Button
-                            Content="Assign..."
-                            Style="{StaticResource IconButton}"
-                            Command="{Binding AssignSessionCommand}"
-                            FontSize="10"
-                            Height="NaN"
-                            Margin="21,26,21,0"
-                            ToolTip="Assign audio session to this channel" Grid.RowSpan="2" Click="Button_Click" Width="60"/>
+                    <StackPanel Grid.Row="1"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Center"
+                                Margin="0,4,0,0">
+                        <Button Content="Assign..."
+                                Style="{StaticResource IconButton}"
+                                Command="{Binding AssignSessionCommand}"
+                                FontSize="10"
+                                Height="32"
+                                Width="50"
+                                Margin="0,0,4,0"
+                                ToolTip="Assign audio session to this channel"/>
+                        <Button Content="Clear"
+                                Style="{StaticResource IconButton}"
+                                Command="{Binding ClearSessionCommand}"
+                                FontSize="10"
+                                Height="31"
+                                Width="40"
+                                ToolTip="Remove assigned session from this channel"/>
+                    </StackPanel>
                 </Grid>
 
                 <!-- VU Meter and Slider Container -->

@@ -6,10 +6,10 @@
         xmlns:models="clr-namespace:Mideej.Models"
         mc:Ignorable="d"
         Title="Assign Audio Session"
-        Height="650"
-        Width="550"
-        MinHeight="500"
-        MinWidth="500"
+        Height="700"
+        Width="900"
+        MinHeight="600"
+        MinWidth="800"
         Background="{DynamicResource BackgroundBrush}"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -85,185 +85,219 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Available Sessions Header -->
-                <TextBlock Grid.Row="2"
-                           Text="Available Sessions"
-                           Style="{StaticResource LabelTextBlock}"
-                           FontWeight="Bold"
-                           Margin="0,0,0,8"/>
+                <!-- Manual Application Entry -->
+                <Border Grid.Row="2"
+                        Style="{StaticResource Card}"
+                        Padding="12"
+                        Margin="0,0,0,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-                <!-- Sessions List (Grouped) -->
-                <ScrollViewer Grid.Row="3"
-                              VerticalScrollBarVisibility="Auto">
-                    <StackPanel>
-                        <!-- Master/Output Section -->
-                        <TextBlock Text="SYSTEM"
-                                   Style="{StaticResource SubtitleTextBlock}"
-                                   FontWeight="Bold"
-                                   FontSize="10"
-                                   Foreground="{DynamicResource AccentBrush}"
-                                   Margin="0,0,0,4"/>
-                        <ItemsControl ItemsSource="{Binding MasterAndOutputSessions}"
-                                      Margin="0,0,0,12">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type models:AudioSessionInfo}">
-                                    <Border Style="{StaticResource Card}"
-                                            Margin="0,0,0,4"
-                                            Padding="8">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="Manual Entry:"
+                                   Style="{StaticResource LabelTextBlock}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,12,0"/>
 
-                                            <CheckBox Grid.Column="0"
-                                                      IsChecked="{Binding IsSelected}"
-                                                      VerticalAlignment="Center"
-                                                      Foreground="{DynamicResource TextBrush}"
-                                                      Margin="0,0,12,0"/>
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding ManualApplicationName, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="{DynamicResource SurfaceBrush}"
+                                 Foreground="{DynamicResource TextBrush}"
+                                 BorderBrush="{DynamicResource BorderBrush}"
+                                 BorderThickness="1"
+                                 Padding="8,6"
+                                 VerticalContentAlignment="Center"
+                                 FontSize="13"
+                                 ToolTip="Enter application name (e.g., chrome.exe, spotify.exe)"/>
+                    </Grid>
+                </Border>
 
-                                            <Border Grid.Column="1"
-                                                    Width="32"
-                                                    Height="32"
-                                                    CornerRadius="6"
-                                                    Background="{DynamicResource AccentBrush}"
-                                                    Margin="0,0,12,0">
-                                                <TextBlock Text="{Binding SessionType, Converter={StaticResource SessionTypeIconConverter}}"
-                                                           FontSize="16"
-                                                           HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center"/>
+                <!-- Three Column Layout -->
+                <Grid Grid.Row="3">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Applications Column -->
+                    <Border Grid.Column="0"
+                            Style="{StaticResource Card}"
+                            Margin="0,0,4,0"
+                            Padding="12">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0"
+                                       Text="APPLICATIONS"
+                                       Style="{StaticResource LabelTextBlock}"
+                                       FontWeight="Bold"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource AccentBrush}"
+                                       Margin="0,0,0,8"/>
+
+                            <ScrollViewer Grid.Row="1"
+                                          VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding ApplicationSessions}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type models:AudioSessionInfo}">
+                                            <Border Style="{StaticResource Card}"
+                                                    Margin="0,0,0,4"
+                                                    Padding="8">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <CheckBox Grid.Column="0"
+                                                              IsChecked="{Binding IsSelected}"
+                                                              VerticalAlignment="Center"
+                                                              Foreground="{DynamicResource TextBrush}"
+                                                              Margin="0,0,8,0"/>
+
+                                                    <StackPanel Grid.Column="1"
+                                                                VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding DisplayName}"
+                                                                   Style="{StaticResource LabelTextBlock}"
+                                                                   FontWeight="SemiBold"
+                                                                   FontSize="12"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                        <TextBlock Text="{Binding ProcessName}"
+                                                                   Style="{StaticResource SubtitleTextBlock}"
+                                                                   FontSize="9"
+                                                                   Margin="0,2,0,0"/>
+                                                    </StackPanel>
+                                                </Grid>
                                             </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
 
-                                            <StackPanel Grid.Column="2"
-                                                        VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding DisplayName}"
-                                                           Style="{StaticResource LabelTextBlock}"
-                                                           FontWeight="SemiBold"
-                                                           FontSize="13"
-                                                           TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Text="{Binding ProcessName}"
-                                                           Style="{StaticResource SubtitleTextBlock}"
-                                                           FontSize="10"
-                                                           Margin="0,2,0,0"/>
-                                            </StackPanel>
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                    <!-- Input Devices Column -->
+                    <Border Grid.Column="1"
+                            Style="{StaticResource Card}"
+                            Margin="4,0,4,0"
+                            Padding="12">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
 
-                        <!-- Input Devices Section -->
-                        <TextBlock Text="INPUT DEVICES"
-                                   Style="{StaticResource SubtitleTextBlock}"
-                                   FontWeight="Bold"
-                                   FontSize="10"
-                                   Foreground="{DynamicResource AccentBrush}"
-                                   Margin="0,0,0,4"
-                                   Visibility="{Binding HasInputDevices, Converter={StaticResource BoolToVisibilityConverter}}"/>
-                        <ItemsControl ItemsSource="{Binding InputDeviceSessions}"
-                                      Margin="0,0,0,12"
-                                      Visibility="{Binding HasInputDevices, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type models:AudioSessionInfo}">
-                                    <Border Style="{StaticResource Card}"
-                                            Margin="0,0,0,4"
-                                            Padding="8">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Row="0"
+                                       Text="INPUT DEVICES"
+                                       Style="{StaticResource LabelTextBlock}"
+                                       FontWeight="Bold"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource AccentBrush}"
+                                       Margin="0,0,0,8"/>
 
-                                            <CheckBox Grid.Column="0"
-                                                      IsChecked="{Binding IsSelected}"
-                                                      VerticalAlignment="Center"
-                                                      Foreground="{DynamicResource TextBrush}"
-                                                      Margin="0,0,12,0"/>
+                            <ScrollViewer Grid.Row="1"
+                                          VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding InputDeviceSessions}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type models:AudioSessionInfo}">
+                                            <Border Style="{StaticResource Card}"
+                                                    Margin="0,0,0,4"
+                                                    Padding="8">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
 
-                                            <Border Grid.Column="1"
-                                                    Width="32"
-                                                    Height="32"
-                                                    CornerRadius="6"
-                                                    Background="{DynamicResource AccentBrush}"
-                                                    Margin="0,0,12,0">
-                                                <TextBlock Text="🎤"
-                                                           FontSize="16"
-                                                           HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center"/>
+                                                    <CheckBox Grid.Column="0"
+                                                              IsChecked="{Binding IsSelected}"
+                                                              VerticalAlignment="Center"
+                                                              Foreground="{DynamicResource TextBrush}"
+                                                              Margin="0,0,8,0"/>
+
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding DisplayName}"
+                                                               Style="{StaticResource LabelTextBlock}"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="12"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </Grid>
                                             </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
 
-                                            <TextBlock Grid.Column="2"
-                                                       Text="{Binding DisplayName}"
-                                                       Style="{StaticResource LabelTextBlock}"
-                                                       FontWeight="SemiBold"
-                                                       FontSize="13"
-                                                       VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis"/>
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                    <!-- Output Devices Column -->
+                    <Border Grid.Column="2"
+                            Style="{StaticResource Card}"
+                            Margin="4,0,0,0"
+                            Padding="12">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
 
-                        <!-- Applications Section -->
-                        <TextBlock Text="APPLICATIONS"
-                                   Style="{StaticResource SubtitleTextBlock}"
-                                   FontWeight="Bold"
-                                   FontSize="10"
-                                   Foreground="{DynamicResource AccentBrush}"
-                                   Margin="0,0,0,4"/>
-                        <ItemsControl ItemsSource="{Binding ApplicationSessions}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type models:AudioSessionInfo}">
-                                    <Border Style="{StaticResource Card}"
-                                            Margin="0,0,0,4"
-                                            Padding="8">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Row="0"
+                                       Text="OUTPUT DEVICES"
+                                       Style="{StaticResource LabelTextBlock}"
+                                       FontWeight="Bold"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource AccentBrush}"
+                                       Margin="0,0,0,8"/>
 
-                                            <CheckBox Grid.Column="0"
-                                                      IsChecked="{Binding IsSelected}"
-                                                      VerticalAlignment="Center"
-                                                      Foreground="{DynamicResource TextBrush}"
-                                                      Margin="0,0,12,0"/>
+                            <ScrollViewer Grid.Row="1"
+                                          VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding MasterAndOutputSessions}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type models:AudioSessionInfo}">
+                                            <Border Style="{StaticResource Card}"
+                                                    Margin="0,0,0,4"
+                                                    Padding="8">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
 
-                                            <Border Grid.Column="1"
-                                                    Width="32"
-                                                    Height="32"
-                                                    CornerRadius="6"
-                                                    Background="{DynamicResource AccentBrush}"
-                                                    Margin="0,0,12,0">
-                                                <TextBlock Text="🎵"
-                                                           FontSize="16"
-                                                           HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center"/>
+                                                    <CheckBox Grid.Column="0"
+                                                              IsChecked="{Binding IsSelected}"
+                                                              VerticalAlignment="Center"
+                                                              Foreground="{DynamicResource TextBrush}"
+                                                              Margin="0,0,8,0"/>
+
+                                                    <StackPanel Grid.Column="1"
+                                                                VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding DisplayName}"
+                                                                   Style="{StaticResource LabelTextBlock}"
+                                                                   FontWeight="SemiBold"
+                                                                   FontSize="12"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                        <TextBlock Text="{Binding ProcessName}"
+                                                                   Style="{StaticResource SubtitleTextBlock}"
+                                                                   FontSize="9"
+                                                                   Margin="0,2,0,0"/>
+                                                    </StackPanel>
+                                                </Grid>
                                             </Border>
-
-                                            <StackPanel Grid.Column="2"
-                                                        VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding DisplayName}"
-                                                           Style="{StaticResource LabelTextBlock}"
-                                                           FontWeight="SemiBold"
-                                                           FontSize="13"
-                                                           TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Text="{Binding ProcessName}"
-                                                           Style="{StaticResource SubtitleTextBlock}"
-                                                           FontSize="10"
-                                                           Margin="0,2,0,0"/>
-                                            </StackPanel>
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </ScrollViewer>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </Grid>
             </Grid>
 
             <!-- Bottom Buttons -->

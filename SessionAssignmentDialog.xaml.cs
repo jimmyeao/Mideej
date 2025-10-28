@@ -15,6 +15,7 @@ public partial class SessionAssignmentDialog : Window, INotifyPropertyChanged
 {
     private bool _isFocusedAppSelected;
     private bool _isUnmappedAppsSelected;
+    private string _manualApplicationName = string.Empty;
 
     public List<AudioSessionInfo> SelectedSessions { get; } = new();
     public ObservableCollection<AudioSessionInfo> AvailableSessions { get; }
@@ -46,6 +47,19 @@ public partial class SessionAssignmentDialog : Window, INotifyPropertyChanged
             if (_isUnmappedAppsSelected != value)
             {
                 _isUnmappedAppsSelected = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string ManualApplicationName
+    {
+        get => _manualApplicationName;
+        set
+        {
+            if (_manualApplicationName != value)
+            {
+                _manualApplicationName = value;
                 OnPropertyChanged();
             }
         }
@@ -135,6 +149,19 @@ public partial class SessionAssignmentDialog : Window, INotifyPropertyChanged
                 SessionId = "unmapped_apps",
                 DisplayName = "Unmapped Applications",
                 ProcessName = "Dynamic",
+                SessionType = AudioSessionType.Application
+            });
+        }
+
+        // Handle manual application name entry
+        if (!string.IsNullOrWhiteSpace(ManualApplicationName))
+        {
+            var cleanName = ManualApplicationName.Trim();
+            SelectedSessions.Add(new AudioSessionInfo
+            {
+                SessionId = $"manual_{cleanName}",
+                DisplayName = cleanName,
+                ProcessName = cleanName,
                 SessionType = AudioSessionType.Application
             });
         }

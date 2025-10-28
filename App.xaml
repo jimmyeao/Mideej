@@ -19,6 +19,7 @@
             <converters:ConnectionStatusConverter x:Key="ConnectionStatusConverter"/>
             <converters:ConnectionStatusTextConverter x:Key="ConnectionStatusTextConverter"/>
             <converters:SessionTypeIconConverter x:Key="SessionTypeIconConverter"/>
+            <converters:SessionAssignedConverter x:Key="SessionAssignedConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

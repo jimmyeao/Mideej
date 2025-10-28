@@ -340,6 +340,8 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             var sessionManager = _defaultDevice.AudioSessionManager;
             _sessionCollection = sessionManager.Sessions;
 
+            Console.WriteLine($"[RefreshSessions] Scanning for audio sessions... Found {_sessionCollection.Count} session(s) in collection");
+
             var currentSessionIds = new HashSet<string>();
             var newSessions = new List<string>();
             var removedSessions = new List<string>();
@@ -349,10 +351,17 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 try
                 {
                     var session = _sessionCollection[i];
-                    if (session.State != AudioSessionState.AudioSessionStateActive)
-                        continue;
-
                     var processId = (int)session.GetProcessID;
+                    var sessionState = session.State;
+
+                    Console.WriteLine($"[RefreshSessions] Session {i}: PID={processId}, State={sessionState}");
+
+                    if (sessionState != AudioSessionState.AudioSessionStateActive)
+                    {
+                        Console.WriteLine($"[RefreshSessions]   -> Skipped (not active)");
+                        continue;
+                    }
+
                     var sessionId = $"{processId}_{session.GetSessionIdentifier}";
 
                     currentSessionIds.Add(sessionId);
@@ -370,7 +379,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
                         _sessions.TryAdd(sessionId, wrapper);
                         newSessions.Add(info.DisplayName);
-                        Console.WriteLine($"New audio session detected: {info.DisplayName} (PID: {processId})");
+                        Console.WriteLine($"[RefreshSessions]   -> NEW SESSION: {info.DisplayName} (PID: {processId})");
                     }
                     else
                     {
@@ -381,11 +390,12 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                             wrapper.Info.Volume = wrapper.VolumeControl.Volume;
                             wrapper.Info.IsMuted = wrapper.VolumeControl.Mute;
                         }
+                        Console.WriteLine($"[RefreshSessions]   -> Existing session: {wrapper.Info.DisplayName}");
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error processing session {i}: {ex.Message}");
+                    Console.WriteLine($"[RefreshSessions] Error processing session {i}: {ex.Message}");
                 }
             }
 
@@ -396,19 +406,22 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 if (_sessions.TryRemove(sessionId, out var wrapper))
                 {
                     removedSessions.Add(wrapper.Info.DisplayName);
-                    Console.WriteLine($"Audio session removed: {wrapper.Info.DisplayName}");
+                    Console.WriteLine($"[RefreshSessions]   -> REMOVED: {wrapper.Info.DisplayName}");
                 }
             }
+
+            Console.WriteLine($"[RefreshSessions] Scan complete. Total active sessions: {_sessions.Count}, New: {newSessions.Count}, Removed: {removedSessions.Count}");
 
             // Only notify if there were changes
             if (newSessions.Count > 0 || removedSessions.Count > 0)
             {
+                Console.WriteLine($"[RefreshSessions] Notifying UI of session changes...");
                 NotifySessionsChanged();
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error refreshing sessions: {ex.Message}");
+            Console.WriteLine($"[RefreshSessions] ERROR: {ex.Message}");
         }
     }
 
@@ -467,8 +480,11 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         {
             // Periodically refresh session list (every 2 seconds)
             var now = DateTime.Now;
-            if (_sessions.Count == 0 || (now - _lastSessionRefresh).TotalMilliseconds >= SessionRefreshIntervalMs)
+            var timeSinceLastRefresh = (now - _lastSessionRefresh).TotalMilliseconds;
+
+            if (_sessions.Count == 0 || timeSinceLastRefresh >= SessionRefreshIntervalMs)
             {
+                Console.WriteLine($"[VuMeterTimer] Triggering session refresh (time since last: {timeSinceLastRefresh:F0}ms)");
                 RefreshSessions();
                 _lastSessionRefresh = now;
             }
