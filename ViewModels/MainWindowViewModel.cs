@@ -1345,13 +1345,16 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void OnMasterMuteChanged(object? sender, MasterMuteChangedEventArgs e)
     {
-        // Find the channel assigned to master_output and update its mute LED
+        // Find the channel assigned to master_output and update its state
         var masterChannel = Channels.FirstOrDefault(ch => 
             ch.AssignedSessions.Any(s => s.SessionId == "master_output"));
         
         if (masterChannel != null)
         {
             StatusMessage = e.IsMuted ? "Master: Muted" : "Master: Unmuted";
+            
+            // Update the channel's internal mute state (fixes UI not updating)
+            masterChannel.IsMuted = e.IsMuted;
             
             // Update the mute LED for the master channel
             SendMuteLedFeedback(masterChannel, e.IsMuted);
@@ -1397,6 +1400,23 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             channel.RelinkFromIntended(AvailableSessions);
             Console.WriteLine($"Relinked {channel.AssignedSessions.Count} sessions to {channel.Name} (dynamic refresh)");
+            
+            // Sync initial state from audio session to UI
+            SyncChannelStateFromSession(channel);
+        }
+    }
+    
+    /// <summary>
+    /// Syncs the channel's UI state with the actual audio session state
+    /// </summary>
+    private void SyncChannelStateFromSession(ChannelViewModel channel)
+    {
+        // Find master_output session and sync its mute state
+        var masterSession = channel.AssignedSessions.FirstOrDefault(s => s.SessionId == "master_output");
+        if (masterSession != null)
+        {
+            channel.IsMuted = masterSession.IsMuted;
+            Console.WriteLine($"Synced {channel.Name} mute state: {masterSession.IsMuted}");
         }
     }
 
