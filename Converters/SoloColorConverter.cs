@@ -13,9 +13,9 @@ public class SoloColorConverter : IValueConverter
     {
         if (value is bool isSoloed && isSoloed)
         {
-            return Color.FromRgb(245, 158, 11); // Amber/yellow when soloed
+            return new SolidColorBrush(Color.FromRgb(245, 158, 11)); // Amber/yellow when soloed
         }
-        return Color.FromRgb(42, 42, 60); // Default surface color
+        return new SolidColorBrush(Colors.Transparent); // Transparent when not soloed
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

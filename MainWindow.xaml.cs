@@ -143,27 +143,15 @@ public partial class MainWindow : Window
 
     private void ApplyFontSize(double scale)
     {
-        // Apply font size scale to application resources
-        if (System.Windows.Application.Current.Resources.Contains("BaseFontSize"))
-        {
-            System.Windows.Application.Current.Resources["BaseFontSize"] = 12.0 * scale;
-        }
-        else
-        {
-            System.Windows.Application.Current.Resources.Add("BaseFontSize", 12.0 * scale);
-        }
-
-        // Update text styles dynamically
-        foreach (var dict in System.Windows.Application.Current.Resources.MergedDictionaries)
-        {
-            if (dict.Source != null && dict.Source.ToString().Contains("Styles.xaml"))
-            {
-                // Reload the styles dictionary to pick up the new font size
-                var newDict = new ResourceDictionary { Source = dict.Source };
-                System.Windows.Application.Current.Resources.MergedDictionaries.Remove(dict);
-                System.Windows.Application.Current.Resources.MergedDictionaries.Add(newDict);
-                break;
-            }
-        }
+        // Update all font size resources with the scale multiplier
+        var resources = System.Windows.Application.Current.Resources;
+        
+        resources["BaseFontSize"] = 12.0 * scale;
+        resources["FontSizeSmall"] = 11.0 * scale;
+        resources["FontSizeNormal"] = 14.0 * scale;
+        resources["FontSizeLarge"] = 18.0 * scale;
+        resources["FontSizeTitle"] = 24.0 * scale;
+        
+        Console.WriteLine($"Font scale applied: {scale}x (Base: {12.0 * scale}, Normal: {14.0 * scale}, Title: {24.0 * scale})");
     }
 }

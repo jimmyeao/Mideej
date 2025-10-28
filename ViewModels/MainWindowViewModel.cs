@@ -95,6 +95,10 @@ public partial class MainWindowViewModel : ViewModelBase
 {
     new ThemeOption { Name = "DarkTheme", DisplayName = "Dark 🌙" },
     new ThemeOption { Name = "LightTheme", DisplayName = "Light ☀️" },
+    new ThemeOption { Name = "NordTheme", DisplayName = "Nord 🌊" },
+    new ThemeOption { Name = "DraculaTheme", DisplayName = "Dracula 🦇" },
+    new ThemeOption { Name = "OceanTheme", DisplayName = "Ocean 🌅" },
+    new ThemeOption { Name = "SunsetTheme", DisplayName = "Sunset 🌇" },
     new ThemeOption { Name = "CyberpunkTheme", DisplayName = "Cyberpunk 🌈" },
     new ThemeOption { Name = "ForestTheme", DisplayName = "Forest 🌿" },
     new ThemeOption { Name = "ArcticTheme", DisplayName = "Arctic ❄️" }

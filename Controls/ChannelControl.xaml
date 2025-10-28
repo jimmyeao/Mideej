@@ -127,11 +127,8 @@
                             Style="{StaticResource IconButton}"
                             Command="{Binding ToggleMuteCommand}"
                             Margin="2"
-                            ToolTip="Mute">
-                        <Button.Background>
-                            <SolidColorBrush Color="{Binding IsMuted, Converter={StaticResource MuteColorConverter}, FallbackValue=#2A2A3C}"/>
-                        </Button.Background>
-                    </Button>
+                            ToolTip="Mute"
+                            Background="{Binding IsMuted, Converter={StaticResource MuteColorConverter}}"/>
 
                     <!-- Solo Button -->
                     <Button Content="S"
@@ -140,11 +137,8 @@
                             Style="{StaticResource IconButton}"
                             Command="{Binding ToggleSoloCommand}"
                             Margin="2"
-                            ToolTip="Solo">
-                        <Button.Background>
-                            <SolidColorBrush Color="{Binding IsSoloed, Converter={StaticResource SoloColorConverter}, FallbackValue=#2A2A3C}"/>
-                        </Button.Background>
-                    </Button>
+                            ToolTip="Solo"
+                            Background="{Binding IsSoloed, Converter={StaticResource SoloColorConverter}}"/>
                 </StackPanel>
 
                 <!-- Mapping Mode Indicator -->
