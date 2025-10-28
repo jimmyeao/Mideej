@@ -1,6 +1,7 @@
 using Mideej.Models;
 using System.Collections.ObjectModel;
 using System.Windows;
+using System.Windows.Input;
 
 namespace Mideej;
 
@@ -17,6 +18,25 @@ public partial class MidiMappingsDialog : Window
         );
 
         MappingsDataGrid.ItemsSource = Mappings;
+    }
+
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 1)
+        {
+            DragMove();
+        }
+    }
+
+    private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void CloseButton_Click(object sender, RoutedEventArgs e)
+    {
+        DialogResult = true;
+        Close();
     }
 
     private void DeleteMapping_Click(object sender, RoutedEventArgs e)
@@ -50,11 +70,6 @@ public partial class MidiMappingsDialog : Window
         }
     }
 
-    private void Close_Click(object sender, RoutedEventArgs e)
-    {
-        DialogResult = true;
-        Close();
-    }
 }
 
 public class MidiMappingViewModel

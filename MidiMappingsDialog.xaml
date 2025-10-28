@@ -7,23 +7,68 @@
         Title="MIDI Mappings"
         Height="500"
         Width="700"
-        Background="{DynamicResource BackgroundBrush}"
+        Background="Transparent"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner">
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+    
+    <Border BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="12"
+            Background="{DynamicResource BackgroundBrush}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="60"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-        <!-- Title -->
-        <TextBlock Grid.Row="0"
-                   Text="MIDI Mappings"
-                   Style="{StaticResource TitleTextBlock}"
-                   Margin="0,0,0,20"/>
+            <!-- Custom Title Bar -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource SurfaceBrush}"
+                    CornerRadius="12,12,0,0"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-        <!-- Mappings List -->
-        <DataGrid Grid.Row="1"
+                    <!-- Title -->
+                    <StackPanel Grid.Column="0"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="20,0">
+                        <TextBlock Text="🎹"
+                                   FontSize="24"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"/>
+                        <TextBlock Text="MIDI Mappings"
+                                   Style="{StaticResource TitleTextBlock}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Window Controls -->
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="12">
+                        <Button Content="—"
+                                Style="{StaticResource IconButton}"
+                                Click="MinimizeButton_Click"
+                                Margin="4,0"/>
+                        <Button Content="✕"
+                                Style="{StaticResource IconButton}"
+                                Click="CloseButton_Click"
+                                Margin="4,0"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Mappings List -->
+            <DataGrid Grid.Row="1"
+                      Margin="20,20,20,0"
                   x:Name="MappingsDataGrid"
                   AutoGenerateColumns="False"
                   CanUserAddRows="False"
@@ -104,11 +149,11 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <!-- Bottom Buttons -->
-        <StackPanel Grid.Row="2"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    Margin="0,20,0,0">
+            <!-- Bottom Buttons -->
+            <StackPanel Grid.Row="2"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="20,20,20,20">
             <Button Content="Clear All"
                     Style="{StaticResource ModernButton}"
                     Click="ClearAll_Click"
@@ -116,8 +161,9 @@
                     Padding="12,6"/>
             <Button Content="Close"
                     Style="{StaticResource ModernButton}"
-                    Click="Close_Click"
+                    Click="CloseButton_Click"
                     Padding="12,6"/>
-        </StackPanel>
-    </Grid>
+            </StackPanel>
+        </Grid>
+    </Border>
 </Window>
