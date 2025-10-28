@@ -546,6 +546,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (sender is ChannelViewModel channel)
         {
             ApplyMuteToSessions(channel);
+            SendMuteLedFeedback(channel, channel.IsMuted);
         }
     }
 
@@ -576,7 +577,23 @@ public partial class MainWindowViewModel : ViewModelBase
 
         ApplySoloLogic();
     }
+    private void SendMuteLedFeedback(ChannelViewModel channel, bool isOn)
+    {
+        if (_midiService == null) return;
 
+        // Find the MIDI mapping for this channel's mute button
+        foreach (var kvp in _midiMappings)
+        {
+            var mapping = kvp.Value;
+            if (mapping.TargetChannelIndex == channel.Index && mapping.ControlType == MidiControlType.Mute)
+            {
+                // Send LED feedback (on=127, off=0)
+                _midiService.SendNoteOn(mapping.Channel, mapping.ControlNumber, isOn ? 127 : 0);
+                Console.WriteLine($"Mute LED feedback sent for {channel.Name}: {(isOn ? "ON" : "OFF")}");
+                break;
+            }
+        }
+    }
     /// <summary>
     /// Sends LED feedback to MIDI controller for solo button state
     /// </summary>
