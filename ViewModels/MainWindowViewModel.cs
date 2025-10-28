@@ -129,7 +129,13 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             _audioSessionManager.SessionsChanged += OnAudioSessionsChanged;
             _audioSessionManager.PeakLevelsUpdated += OnPeakLevelsUpdated;
+            _audioSessionManager.MasterMuteChanged += OnMasterMuteChanged;
             _audioSessionManager.StartMonitoring();
+        }
+
+        if (_mediaControlService != null)
+        {
+            _mediaControlService.PlaybackStateChanged += OnPlaybackStateChanged;
         }
 
         // Load configuration
@@ -1220,12 +1226,29 @@ public partial class MainWindowViewModel : ViewModelBase
             Channels.Clear();
             _pendingChannelConfigs = settings.Channels;
 
-            foreach (var channelConfig in settings.Channels)
+            if (settings.Channels.Count > 0)
             {
-                var channelVm = new ChannelViewModel();
-                channelVm.LoadConfiguration(channelConfig);
-                SubscribeToChannelEvents(channelVm);
-                Channels.Add(channelVm);
+                foreach (var channelConfig in settings.Channels)
+                {
+                    var channelVm = new ChannelViewModel();
+                    channelVm.LoadConfiguration(channelConfig);
+                    SubscribeToChannelEvents(channelVm);
+                    Channels.Add(channelVm);
+                }
+            }
+            else
+            {
+                // Create default channels if none in config
+                for (int i = 0; i < 8; i++)
+                {
+                    var channel = new ChannelViewModel
+                    {
+                        Index = i,
+                        Name = $"Channel {i + 1}"
+                    };
+                    SubscribeToChannelEvents(channel);
+                    Channels.Add(channel);
+                }
             }
 
             // Relink sessions if available
@@ -1282,6 +1305,42 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         IsMidiConnected = e.IsConnected;
         StatusMessage = e.IsConnected ? $"Connected to {e.Device.Name}" : "MIDI device disconnected";
+    }
+
+    private void OnPlaybackStateChanged(Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus status)
+    {
+        // Update internal state and LEDs based on Windows media playback state
+        _isPlaying = status == Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+        
+        StatusMessage = status switch
+        {
+            Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing => "Media: Playing",
+            Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused => "Media: Paused",
+            Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Stopped => "Media: Stopped",
+            _ => StatusMessage
+        };
+        
+        // Update LEDs to reflect current state
+        UpdatePlayPauseLeds();
+        
+        Console.WriteLine($"Playback state changed: {status} (isPlaying={_isPlaying})");
+    }
+
+    private void OnMasterMuteChanged(object? sender, MasterMuteChangedEventArgs e)
+    {
+        // Find the channel assigned to master_output and update its mute LED
+        var masterChannel = Channels.FirstOrDefault(ch => 
+            ch.AssignedSessions.Any(s => s.SessionId == "master_output"));
+        
+        if (masterChannel != null)
+        {
+            StatusMessage = e.IsMuted ? "Master: Muted" : "Master: Unmuted";
+            
+            // Update the mute LED for the master channel
+            SendMuteLedFeedback(masterChannel, e.IsMuted);
+            
+            Console.WriteLine($"Master mute changed: {e.IsMuted} (Volume={e.Volume:F2})");
+        }
     }
 
     private void OnAudioSessionsChanged(object? sender, AudioSessionChangedEventArgs e)

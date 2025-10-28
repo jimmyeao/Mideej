@@ -47,6 +47,13 @@ public partial class App : Application
             await configService.LoadSettingsAsync();
         }
 
+        // Initialize media control service
+        var mediaControlService = _serviceProvider?.GetService<IMediaControlService>();
+        if (mediaControlService != null)
+        {
+            await mediaControlService.InitializeAsync();
+        }
+
         // Create and show main window
         var mainWindow = _serviceProvider?.GetService<MainWindow>();
         if (mainWindow != null)

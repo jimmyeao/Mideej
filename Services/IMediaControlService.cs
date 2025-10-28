@@ -1,4 +1,6 @@
 using System;
+using System.Threading.Tasks;
+using Windows.Media.Control;
 
 namespace Mideej.Services;
 
@@ -12,4 +14,8 @@ public interface IMediaControlService
     void SeekBackward();
     // Optional: toggle support if needed elsewhere
     void PlayPause();
+    
+    // Playback state monitoring
+    Task InitializeAsync();
+    event Action<GlobalSystemMediaTransportControlsSessionPlaybackStatus>? PlaybackStateChanged;
 }

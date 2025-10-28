@@ -23,6 +23,11 @@ public interface IAudioSessionManager
     event EventHandler<PeakLevelEventArgs>? PeakLevelsUpdated;
 
     /// <summary>
+    /// Event fired when master volume mute state changes
+    /// </summary>
+    event EventHandler<MasterMuteChangedEventArgs>? MasterMuteChanged;
+
+    /// <summary>
     /// Gets all active audio sessions
     /// </summary>
     List<AudioSessionInfo> GetActiveSessions();
@@ -82,4 +87,13 @@ public class SessionVolumeChangedEventArgs : EventArgs
 public class PeakLevelEventArgs : EventArgs
 {
     public Dictionary<string, float> PeakLevels { get; set; } = new();
+}
+
+/// <summary>
+/// Event args for master volume mute state changes
+/// </summary>
+public class MasterMuteChangedEventArgs : EventArgs
+{
+    public bool IsMuted { get; set; }
+    public float Volume { get; set; }
 }

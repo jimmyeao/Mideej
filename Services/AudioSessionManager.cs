@@ -30,6 +30,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     public event EventHandler<AudioSessionChangedEventArgs>? SessionsChanged;
     public event EventHandler<SessionVolumeChangedEventArgs>? SessionVolumeChanged;
     public event EventHandler<PeakLevelEventArgs>? PeakLevelsUpdated;
+    public event EventHandler<MasterMuteChangedEventArgs>? MasterMuteChanged;
 
     private class SessionWrapper
     {
@@ -277,6 +278,12 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             _deviceEnumerator = new MMDeviceEnumerator();
             _defaultDevice = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
 
+            // Subscribe to master volume change notifications
+            if (_defaultDevice != null)
+            {
+                _defaultDevice.AudioEndpointVolume.OnVolumeNotification += OnMasterVolumeChanged;
+            }
+
             RefreshSessions();
 
             // Start VU meter timer
@@ -308,6 +315,12 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             CleanupSessions();
 
             _sessionCollection = null;
+
+            // Unsubscribe from master volume notifications
+            if (_defaultDevice != null)
+            {
+                _defaultDevice.AudioEndpointVolume.OnVolumeNotification -= OnMasterVolumeChanged;
+            }
 
             _defaultDevice?.Dispose();
             _defaultDevice = null;
@@ -612,6 +625,27 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         catch (Exception ex)
         {
             Console.WriteLine($"Error in VU meter timer: {ex.Message}");
+        }
+    }
+
+    private void OnMasterVolumeChanged(AudioVolumeNotificationData data)
+    {
+        try
+        {
+            Console.WriteLine($"Master volume changed: Muted={data.Muted}, Volume={data.MasterVolume}");
+            
+            DispatcherHelper.RunOnUIThread(() =>
+            {
+                MasterMuteChanged?.Invoke(this, new MasterMuteChangedEventArgs
+                {
+                    IsMuted = data.Muted,
+                    Volume = data.MasterVolume
+                });
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error handling master volume change: {ex.Message}");
         }
     }
 

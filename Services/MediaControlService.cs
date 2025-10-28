@@ -1,14 +1,72 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Windows.Interop;
+using Windows.Media.Control;
 
 namespace Mideej.Services;
 
 /// <summary>
-/// Sends system media key commands to control the OS/global media transport.
+/// Sends system media key commands to control the OS/global media transport
+/// and monitors playback state changes.
 /// </summary>
 public class MediaControlService : IMediaControlService
 {
+    private GlobalSystemMediaTransportControlsSessionManager? _sessionManager;
+    private GlobalSystemMediaTransportControlsSession? _currentSession;
+    
+    public event Action<GlobalSystemMediaTransportControlsSessionPlaybackStatus>? PlaybackStateChanged;
+    
+    public async Task InitializeAsync()
+    {
+        try
+        {
+            _sessionManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+            _currentSession = _sessionManager.GetCurrentSession();
+            
+            if (_currentSession != null)
+            {
+                // Get initial state
+                var status = _currentSession.GetPlaybackInfo().PlaybackStatus;
+                PlaybackStateChanged?.Invoke(status);
+                
+                // Subscribe to changes
+                _currentSession.PlaybackInfoChanged += OnPlaybackInfoChanged;
+            }
+            
+            // Handle session changes (e.g., switching between apps)
+            _sessionManager.CurrentSessionChanged += OnCurrentSessionChanged;
+        }
+        catch (Exception)
+        {
+            // Silently fail if media sessions aren't available
+        }
+    }
+    
+    private void OnPlaybackInfoChanged(GlobalSystemMediaTransportControlsSession session, PlaybackInfoChangedEventArgs args)
+    {
+        var status = session.GetPlaybackInfo().PlaybackStatus;
+        PlaybackStateChanged?.Invoke(status);
+    }
+    
+    private void OnCurrentSessionChanged(GlobalSystemMediaTransportControlsSessionManager sender, CurrentSessionChangedEventArgs args)
+    {
+        if (_currentSession != null)
+        {
+            _currentSession.PlaybackInfoChanged -= OnPlaybackInfoChanged;
+        }
+            
+        _currentSession = sender.GetCurrentSession();
+        if (_currentSession != null)
+        {
+            _currentSession.PlaybackInfoChanged += OnPlaybackInfoChanged;
+            
+            // Notify of new session's state
+            var status = _currentSession.GetPlaybackInfo().PlaybackStatus;
+            PlaybackStateChanged?.Invoke(status);
+        }
+    }
+    
     public void PlayPause() => SendMediaKey(KEYEVENTF_EXTENDEDKEY, VK_MEDIA_PLAY_PAUSE);
     public void Play() => SendMediaKey(KEYEVENTF_EXTENDEDKEY, VK_MEDIA_PLAY_PAUSE); // Best-effort
     public void Pause() => SendMediaKey(KEYEVENTF_EXTENDEDKEY, VK_MEDIA_PLAY_PAUSE); // Best-effort
