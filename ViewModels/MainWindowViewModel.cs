@@ -343,6 +343,38 @@ public partial class MainWindowViewModel : ViewModelBase
         UpdateWindowSize();
     }
 
+    [RelayCommand]
+    private void ManageMappings()
+    {
+        var channelNames = Channels.Select(c => c.Name).ToList();
+        var mappingsList = _midiMappings.Values.ToList();
+        
+        var dialog = new MidiMappingsDialog(mappingsList, channelNames)
+        {
+            Owner = Application.Current.MainWindow
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            // Update mappings based on what's left in the dialog
+            _midiMappings.Clear();
+            foreach (var mappingVm in dialog.Mappings)
+            {
+                var key = (mappingVm.Original.Channel, mappingVm.Original.ControlNumber);
+                _midiMappings[key] = mappingVm.Original;
+            }
+
+            // Save to configuration
+            if (_configurationService != null)
+            {
+                _configurationService.CurrentSettings.MidiMappings = _midiMappings.Values.ToList();
+                _ = _configurationService.SaveCurrentSettingsAsync();
+            }
+
+            StatusMessage = $"Mappings updated: {_midiMappings.Count} mappings active";
+        }
+    }
+
     // Transport action commands (invoke immediately from UI)
     [RelayCommand]
     private void TransportPlay() => PerformTransportAction(MidiControlType.TransportPlay);
@@ -1037,15 +1069,35 @@ public partial class MainWindowViewModel : ViewModelBase
         switch (controlType)
         {
             case MidiControlType.TransportPlay:
-                _mediaControlService?.Play();
-                _isPlaying = true;
-                StatusMessage = "Media: Play";
+                // Toggle play/pause - if playing, pause it; if paused, play it
+                if (_isPlaying)
+                {
+                    _mediaControlService?.Pause();
+                    _isPlaying = false;
+                    StatusMessage = "Media: Paused";
+                }
+                else
+                {
+                    _mediaControlService?.Play();
+                    _isPlaying = true;
+                    StatusMessage = "Media: Playing";
+                }
                 UpdatePlayPauseLeds();
                 break;
             case MidiControlType.TransportPause:
-                _mediaControlService?.Pause();
-                _isPlaying = false;
-                StatusMessage = "Media: Pause";
+                // Toggle play/pause - if playing, pause it; if paused, play it
+                if (_isPlaying)
+                {
+                    _mediaControlService?.Pause();
+                    _isPlaying = false;
+                    StatusMessage = "Media: Paused";
+                }
+                else
+                {
+                    _mediaControlService?.Play();
+                    _isPlaying = true;
+                    StatusMessage = "Media: Playing";
+                }
                 UpdatePlayPauseLeds();
                 break;
             case MidiControlType.TransportNext:
