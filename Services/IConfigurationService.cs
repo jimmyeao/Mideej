@@ -71,4 +71,9 @@ public interface IConfigurationService
     /// Applies an imported controller configuration to current settings
     /// </summary>
     void ApplyControllerConfig(ControllerConfig config, bool replaceExisting = true, bool applyChannels = false);
+
+    /// <summary>
+    /// Restores settings from the most recent backup
+    /// </summary>
+    Task<bool> RestoreFromBackupAsync();
 }

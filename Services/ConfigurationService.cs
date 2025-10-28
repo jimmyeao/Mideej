@@ -10,7 +10,10 @@ namespace Mideej.Services;
 public class ConfigurationService : IConfigurationService
 {
     private readonly string _settingsPath;
+    private readonly string _backupPath;
+    private readonly string _backupDirectory;
     private AppSettings _currentSettings;
+    private const int MaxBackups = 5;
 
     public AppSettings CurrentSettings => _currentSettings;
 
@@ -21,6 +24,10 @@ public class ConfigurationService : IConfigurationService
         Directory.CreateDirectory(mideejPath);
 
         _settingsPath = Path.Combine(mideejPath, "settings.json");
+        _backupDirectory = Path.Combine(mideejPath, "backups");
+        _backupPath = Path.Combine(_backupDirectory, "settings.backup.json");
+        Directory.CreateDirectory(_backupDirectory);
+        
         _currentSettings = new AppSettings();
     }
 
@@ -54,6 +61,16 @@ public class ConfigurationService : IConfigurationService
     {
         try
         {
+            // Validate settings before saving
+            if (!ValidateSettings(settings))
+            {
+                Console.WriteLine("Warning: Refusing to save invalid/empty settings. Keeping existing config.");
+                return;
+            }
+            
+            // Create backup of current settings before overwriting
+            await CreateBackupAsync();
+            
             _currentSettings = settings;
             var options = new JsonSerializerOptions
             {
@@ -61,6 +78,8 @@ public class ConfigurationService : IConfigurationService
             };
             var json = JsonSerializer.Serialize(settings, options);
             await File.WriteAllTextAsync(_settingsPath, json);
+            
+            Console.WriteLine($"Settings saved successfully ({settings.Channels.Count} channels, {settings.MidiMappings.Count} mappings)");
         }
         catch (Exception ex)
         {
@@ -266,5 +285,109 @@ public class ConfigurationService : IConfigurationService
                 }
             }
         }
+    }
+
+    private bool ValidateSettings(AppSettings settings)
+    {
+        if (settings == null)
+        {
+            Console.WriteLine("Validation failed: Settings is null");
+            return false;
+        }
+        
+        // Require at least some channels or mappings to prevent saving completely empty config
+        // But allow empty if it's intentional (user deleted all)
+        if (settings.Channels.Count == 0 && settings.MidiMappings.Count == 0 && 
+            _currentSettings.Channels.Count > 0) // Only fail if we're losing data
+        {
+            Console.WriteLine("Validation failed: Attempting to save empty config when previous config had data");
+            return false;
+        }
+        
+        return true;
+    }
+
+    private async Task CreateBackupAsync()
+    {
+        try
+        {
+            // Only backup if settings file exists and has content
+            if (!File.Exists(_settingsPath))
+                return;
+            
+            // Create timestamped backup
+            var timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+            var timestampedBackup = Path.Combine(_backupDirectory, $"settings.{timestamp}.json");
+            
+            // Copy current settings to timestamped backup
+            File.Copy(_settingsPath, timestampedBackup, overwrite: true);
+            
+            // Also maintain a "latest" backup
+            File.Copy(_settingsPath, _backupPath, overwrite: true);
+            
+            // Clean up old backups, keep only the most recent ones
+            await CleanupOldBackupsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Warning: Failed to create backup: {ex.Message}");
+            // Don't throw - backup failure shouldn't prevent saving
+        }
+    }
+
+    private async Task CleanupOldBackupsAsync()
+    {
+        try
+        {
+            var backupFiles = Directory.GetFiles(_backupDirectory, "settings.*.json")
+                .Where(f => !f.EndsWith("backup.json")) // Don't count the "latest" backup
+                .OrderByDescending(f => File.GetCreationTime(f))
+                .ToList();
+            
+            // Keep only the most recent N backups
+            if (backupFiles.Count > MaxBackups)
+            {
+                foreach (var oldBackup in backupFiles.Skip(MaxBackups))
+                {
+                    File.Delete(oldBackup);
+                    Console.WriteLine($"Deleted old backup: {Path.GetFileName(oldBackup)}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Warning: Failed to cleanup old backups: {ex.Message}");
+        }
+        
+        await Task.CompletedTask;
+    }
+
+    public async Task<bool> RestoreFromBackupAsync()
+    {
+        try
+        {
+            if (!File.Exists(_backupPath))
+            {
+                Console.WriteLine("No backup file found to restore from");
+                return false;
+            }
+            
+            var json = await File.ReadAllTextAsync(_backupPath);
+            var settings = JsonSerializer.Deserialize<AppSettings>(json);
+            
+            if (settings != null && ValidateSettings(settings))
+            {
+                _currentSettings = settings;
+                await File.WriteAllTextAsync(_settingsPath, json);
+                Console.WriteLine($"Successfully restored from backup ({settings.Channels.Count} channels, {settings.MidiMappings.Count} mappings)");
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error restoring from backup: {ex.Message}");
+        }
+        
+        return false;
     }
 }

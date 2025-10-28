@@ -1222,6 +1222,23 @@ public partial class MainWindowViewModel : ViewModelBase
             var settings = await _configurationService.LoadSettingsAsync();
             CurrentTheme = settings.Theme;
 
+            // Detect corrupted/empty config and attempt restore from backup
+            if (settings.Channels.Count == 0 && settings.MidiMappings.Count == 0)
+            {
+                Console.WriteLine("Warning: Loaded config is empty. Attempting to restore from backup...");
+                if (await _configurationService.RestoreFromBackupAsync())
+                {
+                    settings = _configurationService.CurrentSettings;
+                    StatusMessage = "✓ Restored configuration from backup";
+                    Console.WriteLine("Successfully restored from backup");
+                }
+                else
+                {
+                    Console.WriteLine("No backup available or backup restore failed. Using defaults.");
+                    StatusMessage = "No saved configuration found - using defaults";
+                }
+            }
+
             // Load channels from configuration
             Channels.Clear();
             _pendingChannelConfigs = settings.Channels;
