@@ -224,6 +224,14 @@ public partial class MainWindowViewModel : ViewModelBase
             StatusMessage = $"✓ Connected to {SelectedMidiDevice.Name}";
             Console.WriteLine($"Successfully connected to {SelectedMidiDevice.Name}");
             Console.WriteLine("Listening for MIDI messages...");
+            
+            // Play startup animation if it's an M-Vave SMC mixer
+            if (SelectedMidiDevice.Name.Contains("SMC", StringComparison.OrdinalIgnoreCase) ||
+                SelectedMidiDevice.Name.Contains("M-Vave", StringComparison.OrdinalIgnoreCase) ||
+                SelectedMidiDevice.Name.Contains("SINCO", StringComparison.OrdinalIgnoreCase))
+            {
+                _ = PlayStartupAnimation();
+            }
         }
         else
         {
@@ -373,7 +381,7 @@ public partial class MainWindowViewModel : ViewModelBase
             // Save to configuration
             if (_configurationService != null)
             {
-                _configurationService.CurrentSettings.MidiMappings = _midiMappings.Values.ToList();
+                SyncConfigurationState();
                 _ = _configurationService.SaveCurrentSettingsAsync();
             }
 
@@ -855,7 +863,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _midiMappings[key] = mapping;
         if (_configurationService != null)
         {
-            _configurationService.CurrentSettings.MidiMappings = _midiMappings.Values.ToList();
+            SyncConfigurationState();
             _ = _configurationService.SaveCurrentSettingsAsync();
         }
         StatusMessage = $"Mapped MIDI CH{midiChannel + 1} Note{noteNumber} to {controlType}";
@@ -874,7 +882,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _midiMappings[key] = mapping;
         if (_configurationService != null)
         {
-            _configurationService.CurrentSettings.MidiMappings = _midiMappings.Values.ToList();
+            SyncConfigurationState();
             _ = _configurationService.SaveCurrentSettingsAsync();
         }
         StatusMessage = $"Mapped MIDI CH{midiChannel + 1} CC{controller} to {controlType}";
@@ -907,7 +915,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (_configurationService != null)
         {
-            _configurationService.CurrentSettings.MidiMappings = _midiMappings.Values.ToList();
+            SyncConfigurationState();
             _ = _configurationService.SaveCurrentSettingsAsync();
         }
 
@@ -930,7 +938,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (_configurationService != null)
         {
-            _configurationService.CurrentSettings.MidiMappings = _midiMappings.Values.ToList();
+            SyncConfigurationState();
             _ = _configurationService.SaveCurrentSettingsAsync();
         }
 
@@ -1309,13 +1317,25 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (_configurationService == null) return;
 
+        SyncConfigurationState();
+        await _configurationService.SaveSettingsAsync(_configurationService.CurrentSettings);
+    }
+
+    /// <summary>
+    /// Syncs all UI state (channels, mappings, theme, device) to CurrentSettings in memory.
+    /// Call this before any save operation to ensure CurrentSettings is up-to-date.
+    /// </summary>
+    private void SyncConfigurationState()
+    {
+        if (_configurationService == null) return;
+
         var settings = _configurationService.CurrentSettings;
         settings.Theme = CurrentTheme;
         settings.SelectedMidiDevice = SelectedMidiDevice?.Name;
         settings.Channels = Channels.Select(c => c.ToConfiguration()).ToList();
         settings.MidiMappings = _midiMappings.Values.ToList();
 
-        await _configurationService.SaveSettingsAsync(settings);
+        Console.WriteLine($"[Config Sync] Synced {settings.Channels.Count} channels, {settings.MidiMappings.Count} mappings to CurrentSettings");
     }
 
     private void OnMidiDeviceStateChanged(object? sender, MidiDeviceEventArgs e)
@@ -1455,7 +1475,7 @@ public partial class MainWindowViewModel : ViewModelBase
         // Update configuration
         if (_configurationService != null)
         {
-            _configurationService.CurrentSettings.MidiMappings = _midiMappings.Values.ToList();
+            SyncConfigurationState();
             _ = _configurationService.SaveCurrentSettingsAsync();
         }
 
@@ -1527,5 +1547,77 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             _audioSessionManager.SetSessionMute(session.SessionId, channel.IsMuted);
         }
+    }
+    
+    /// <summary>
+    /// Plays a cool LED startup animation on M-Vave SMC mixer
+    /// </summary>
+    private async Task PlayStartupAnimation()
+    {
+        if (_midiService == null || !IsMidiConnected)
+            return;
+        
+        await Task.Run(async () =>
+        {
+            try
+            {
+                Console.WriteLine("🎨 Playing startup animation...");
+                
+                // M-Vave SMC button layout (based on Mixxx XML):
+                // Row 1: Notes 0x00-0x07 (top row buttons)
+                // Row 2: Notes 0x08-0x0F (second row)
+                // Row 3: Notes 0x10-0x17 (third row)
+                
+                // Animation: Sweep across all channels
+                for (int channel = 0; channel < 8; channel++)
+                {
+                    // Light up all buttons in this channel
+                    _midiService.SendNoteOn(0, 0x00 + channel, 127);
+                    _midiService.SendNoteOn(0, 0x08 + channel, 127);
+                    _midiService.SendNoteOn(0, 0x10 + channel, 127);
+                    
+                    await Task.Delay(50);
+                    
+                    // Turn off previous channel (trailing effect)
+                    if (channel > 0)
+                    {
+                        _midiService.SendNoteOn(0, 0x00 + (channel - 1), 0);
+                        _midiService.SendNoteOn(0, 0x08 + (channel - 1), 0);
+                        _midiService.SendNoteOn(0, 0x10 + (channel - 1), 0);
+                    }
+                }
+                
+                // Turn off last channel
+                await Task.Delay(50);
+                _midiService.SendNoteOn(0, 0x07, 0);
+                _midiService.SendNoteOn(0, 0x0F, 0);
+                _midiService.SendNoteOn(0, 0x17, 0);
+                
+                // Flash all LEDs twice
+                await Task.Delay(100);
+                for (int flash = 0; flash < 2; flash++)
+                {
+                    // All on
+                    for (int note = 0x00; note <= 0x17; note++)
+                    {
+                        _midiService.SendNoteOn(0, note, 127);
+                    }
+                    await Task.Delay(80);
+                    
+                    // All off
+                    for (int note = 0x00; note <= 0x17; note++)
+                    {
+                        _midiService.SendNoteOn(0, note, 0);
+                    }
+                    await Task.Delay(80);
+                }
+                
+                Console.WriteLine("✨ Startup animation complete!");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error playing startup animation: {ex.Message}");
+            }
+        });
     }
 }
