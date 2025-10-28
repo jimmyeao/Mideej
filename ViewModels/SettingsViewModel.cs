@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Mideej.Models;
 using Mideej.Services;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
 
 namespace Mideej.ViewModels;
@@ -41,6 +42,11 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _statusMessage = string.Empty;
 
+    public ObservableCollection<ControllerPresetOption> ControllerPresets { get; } = new();
+
+    [ObservableProperty]
+    private ControllerPresetOption? _selectedPreset;
+
     public SettingsViewModel(MainWindowViewModel mainViewModel, IConfigurationService? configurationService)
     {
         _mainViewModel = mainViewModel;
@@ -57,6 +63,105 @@ public partial class SettingsViewModel : ViewModelBase
         if (matchingOption != null)
         {
             SelectedFontSizeIndex = FontSizeOptions.IndexOf(matchingOption);
+        }
+
+        // Load available controller presets
+        LoadControllerPresets();
+    }
+
+    private void LoadControllerPresets()
+    {
+        try
+        {
+            var presetsFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ControllerPresets");
+            
+            if (Directory.Exists(presetsFolder))
+            {
+                var jsonFiles = Directory.GetFiles(presetsFolder, "*.json");
+                
+                foreach (var file in jsonFiles)
+                {
+                    var fileName = Path.GetFileNameWithoutExtension(file);
+                    ControllerPresets.Add(new ControllerPresetOption
+                    {
+                        DisplayName = fileName.Replace("-", " ").Replace("_", " "),
+                        FilePath = file
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading controller presets: {ex.Message}");
+        }
+    }
+
+    partial void OnSelectedPresetChanged(ControllerPresetOption? value)
+    {
+        if (value != null)
+        {
+            _ = LoadPresetAsync(value.FilePath);
+        }
+    }
+
+    private async Task LoadPresetAsync(string filePath)
+    {
+        try
+        {
+            if (_configurationService == null) return;
+
+            var config = await _configurationService.ImportControllerConfigAsync(filePath);
+            
+            var result = MessageBox.Show(
+                $"Load preset '{config.ControllerName}'?\n\n" +
+                $"MIDI Mappings: {config.MidiMappings.Count}\n" +
+                $"Channels: {config.Channels?.Count ?? 0}\n\n" +
+                "Replace existing mappings?",
+                "Load Controller Preset",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Cancel)
+            {
+                SelectedPreset = null; // Reset selection
+                return;
+            }
+
+            bool replaceExisting = result == MessageBoxResult.Yes;
+            
+            bool applyChannels = false;
+            if (config.Channels != null && config.Channels.Count > 0)
+            {
+                var channelResult = MessageBox.Show(
+                    "Load channel configurations too?",
+                    "Load Channels",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+                applyChannels = channelResult == MessageBoxResult.Yes;
+            }
+
+            Console.WriteLine($"Applying config with {config.MidiMappings.Count} mappings");
+            _configurationService.ApplyControllerConfig(config, replaceExisting, applyChannels);
+            
+            Console.WriteLine($"Config applied. CurrentSettings has {_configurationService.CurrentSettings.MidiMappings.Count} mappings");
+            
+            // Reload mappings and channels in main view model on UI thread
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                _mainViewModel.ReloadFromConfiguration(applyChannels);
+            });
+            
+            // Save the configuration
+            await _mainViewModel.SaveConfigurationAsync();
+            
+            Console.WriteLine("Preset loading complete");
+            StatusMessage = $"✓ Loaded preset '{config.ControllerName}' - {config.MidiMappings.Count} mappings";
+            SelectedPreset = null; // Reset selection
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"✗ Failed to load preset: {ex.Message}";
+            SelectedPreset = null; // Reset selection
         }
     }
 
@@ -186,4 +291,10 @@ public class FontSizeOption
 {
     public string DisplayName { get; set; } = string.Empty;
     public double Scale { get; set; }
+}
+
+public class ControllerPresetOption
+{
+    public string DisplayName { get; set; } = string.Empty;
+    public string FilePath { get; set; } = string.Empty;
 }

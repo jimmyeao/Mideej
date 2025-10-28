@@ -68,7 +68,8 @@ public partial class MainWindow : Window
                 if (_notifyIcon != null)
                 {
                     _notifyIcon.Visible = true;
-                    _notifyIcon.ShowBalloonTip(1000, "Mideej", "Minimized to tray", ToolTipIcon.Info);
+                    // Show a subtle balloon tip with no icon (cleaner look)
+                    _notifyIcon.ShowBalloonTip(1000, "Mideej", "Minimized to tray. Double-click to restore.", ToolTipIcon.None);
                 }
             }
         }
@@ -76,16 +77,7 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        if (!_isClosing && DataContext is MainWindowViewModel viewModel)
-        {
-            if (viewModel.MinimizeToTray)
-            {
-                e.Cancel = true;
-                WindowState = WindowState.Minimized;
-                return;
-            }
-        }
-
+        // Always allow closing - don't intercept the close button
         _notifyIcon?.Dispose();
         if (DataContext is MainWindowViewModel vm)
         {

@@ -1,0 +1,424 @@
+{
+  "ControllerName": "MIDIIN2 (SMC-Mixer)",
+  "Description": "",
+  "MidiMappings": [
+    {
+      "Channel": 0,
+      "ControlNumber": -1,
+      "TargetChannelIndex": 0,
+      "ControlType": 0,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 2,
+      "ControlNumber": -1,
+      "TargetChannelIndex": 2,
+      "ControlType": 0,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 3,
+      "ControlNumber": -1,
+      "TargetChannelIndex": 3,
+      "ControlType": 0,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 4,
+      "ControlNumber": -1,
+      "TargetChannelIndex": 4,
+      "ControlType": 0,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 5,
+      "ControlNumber": -1,
+      "TargetChannelIndex": 5,
+      "ControlType": 0,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 6,
+      "ControlNumber": -1,
+      "TargetChannelIndex": 6,
+      "ControlType": 0,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 7,
+      "ControlNumber": -1,
+      "TargetChannelIndex": 7,
+      "ControlType": 0,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 1,
+      "ControlNumber": -1,
+      "TargetChannelIndex": 1,
+      "ControlType": 0,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 16,
+      "TargetChannelIndex": 0,
+      "ControlType": 1,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 8,
+      "TargetChannelIndex": 0,
+      "ControlType": 2,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 0,
+      "TargetChannelIndex": 0,
+      "ControlType": 3,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 24,
+      "TargetChannelIndex": 0,
+      "ControlType": 4,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 17,
+      "TargetChannelIndex": 1,
+      "ControlType": 1,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 9,
+      "TargetChannelIndex": 1,
+      "ControlType": 2,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 1,
+      "TargetChannelIndex": 1,
+      "ControlType": 3,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 25,
+      "TargetChannelIndex": 1,
+      "ControlType": 4,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 18,
+      "TargetChannelIndex": 2,
+      "ControlType": 1,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 10,
+      "TargetChannelIndex": 2,
+      "ControlType": 2,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 2,
+      "TargetChannelIndex": 2,
+      "ControlType": 3,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 26,
+      "TargetChannelIndex": 2,
+      "ControlType": 4,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 19,
+      "TargetChannelIndex": 3,
+      "ControlType": 1,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 11,
+      "TargetChannelIndex": 3,
+      "ControlType": 2,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 3,
+      "TargetChannelIndex": 3,
+      "ControlType": 3,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 27,
+      "TargetChannelIndex": 3,
+      "ControlType": 4,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 20,
+      "TargetChannelIndex": 4,
+      "ControlType": 1,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 12,
+      "TargetChannelIndex": 4,
+      "ControlType": 2,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 4,
+      "TargetChannelIndex": 4,
+      "ControlType": 3,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 28,
+      "TargetChannelIndex": 4,
+      "ControlType": 4,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 21,
+      "TargetChannelIndex": 5,
+      "ControlType": 1,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 13,
+      "TargetChannelIndex": 5,
+      "ControlType": 2,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 5,
+      "TargetChannelIndex": 5,
+      "ControlType": 3,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 29,
+      "TargetChannelIndex": 5,
+      "ControlType": 4,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 22,
+      "TargetChannelIndex": 6,
+      "ControlType": 1,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 14,
+      "TargetChannelIndex": 6,
+      "ControlType": 2,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 6,
+      "TargetChannelIndex": 6,
+      "ControlType": 3,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 30,
+      "TargetChannelIndex": 6,
+      "ControlType": 4,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 23,
+      "TargetChannelIndex": 7,
+      "ControlType": 1,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 15,
+      "TargetChannelIndex": 7,
+      "ControlType": 2,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 7,
+      "TargetChannelIndex": 7,
+      "ControlType": 3,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 31,
+      "TargetChannelIndex": 7,
+      "ControlType": 4,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 46,
+      "TargetChannelIndex": -1,
+      "ControlType": 12,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 47,
+      "TargetChannelIndex": -1,
+      "ControlType": 11,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 94,
+      "TargetChannelIndex": -1,
+      "ControlType": 9,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 93,
+      "TargetChannelIndex": -1,
+      "ControlType": 10,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 91,
+      "TargetChannelIndex": -1,
+      "ControlType": 12,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 92,
+      "TargetChannelIndex": -1,
+      "ControlType": 11,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    }
+  ],
+  "Channels": [],
+  "CreatedAt": "2025-10-28T23:04:09.1637638Z",
+  "ModifiedAt": "2025-10-28T23:04:09.1639204Z",
+  "Version": 1
+}

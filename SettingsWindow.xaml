@@ -7,7 +7,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         mc:Ignorable="d"
         Title="Settings - Mideej"
-        Height="804"
+        Height="845"
         Width="700"
         MinHeight="500"
         MinWidth="600"
@@ -16,7 +16,7 @@
         AllowsTransparency="True"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner">
-    
+
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome 
             CaptionHeight="0"
@@ -28,8 +28,12 @@
     <Border BorderBrush="{DynamicResource BorderBrush}"
             BorderThickness="1"
             CornerRadius="12"
-            Background="{DynamicResource BackgroundBrush}">
+            Background="{DynamicResource BackgroundBrush}" Margin="0,0,0,5">
         <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="202*"/>
+                <ColumnDefinition Width="147*"/>
+            </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
                 <RowDefinition Height="60"/>
                 <RowDefinition Height="*"/>
@@ -40,7 +44,7 @@
             <Border Grid.Row="0"
                     Background="{DynamicResource SurfaceBrush}"
                     CornerRadius="12,12,0,0"
-                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown" Grid.ColumnSpan="2">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -87,7 +91,7 @@
             <!-- Settings Content -->
             <ScrollViewer Grid.Row="1" 
                           VerticalScrollBarVisibility="Auto"
-                          Padding="30,20">
+                          Padding="30,20" Grid.ColumnSpan="2">
                 <StackPanel>
                     <!-- Appearance Section -->
                     <TextBlock Text="Appearance"
@@ -214,6 +218,37 @@
                             Padding="20"
                             Margin="0,0,0,20">
                         <StackPanel>
+                            <!-- Controller Presets -->
+                            <Grid Margin="0,0,0,16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Controller Presets"
+                                               Style="{StaticResource LabelTextBlock}"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="Quickly load a preset for popular MIDI controllers"
+                                               Style="{StaticResource SubtitleTextBlock}"
+                                               FontSize="11"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding ControllerPresets}"
+                                          SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
+                                          Style="{StaticResource ModernComboBox}"
+                                          Width="200"
+                                          VerticalAlignment="Center">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding DisplayName}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+
                             <!-- Manage Mappings -->
                             <Grid Margin="0,0,0,16">
                                 <Grid.ColumnDefinitions>
@@ -291,12 +326,12 @@
             </ScrollViewer>
 
             <!-- Bottom Action Bar -->
-            <Border Grid.Row="2"
+            <Border Grid.Row="1"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,1,0,0"
                     CornerRadius="0,0,12,12"
-                    Padding="30,16">
+                    Padding="30,16" Grid.ColumnSpan="2" Margin="0,709,0,0">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>

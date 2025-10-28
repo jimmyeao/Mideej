@@ -14,7 +14,22 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="ControllerPresets\Behringer-X-Touch-Mini.json" />
+    <None Remove="ControllerPresets\M-Vave SMC Mixer.json" />
+    <None Remove="ControllerPresets\Novation-Launchpad.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="appicon.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="ControllerPresets\Behringer-X-Touch-Mini.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="ControllerPresets\M-Vave SMC Mixer.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="ControllerPresets\Novation-Launchpad.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

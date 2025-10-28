@@ -58,10 +58,11 @@ public partial class App : Application
         var mainWindow = _serviceProvider?.GetService<MainWindow>();
         if (mainWindow != null)
         {
-            // Check for --minimized command line argument
-            bool startMinimized = e.Args.Contains("--minimized");
+            // Check for --minimized command line argument or StartMinimized setting
+            bool hasMinimizedArg = e.Args.Contains("--minimized");
+            bool shouldStartMinimized = hasMinimizedArg && configService?.CurrentSettings.StartMinimized == true;
             
-            if (startMinimized && configService?.CurrentSettings.StartMinimized == true)
+            if (shouldStartMinimized)
             {
                 mainWindow.WindowState = WindowState.Minimized;
                 mainWindow.Show();

@@ -6,7 +6,7 @@
       "Channel": 0,
       "ControlNumber": 1,
       "TargetChannelIndex": 0,
-      "ControlType": "Volume",
+      "ControlType": 0,
       "MinValue": 0.0,
       "MaxValue": 1.0,
       "IsInverted": false
@@ -15,7 +15,7 @@
       "Channel": 0,
       "ControlNumber": 2,
       "TargetChannelIndex": 1,
-      "ControlType": "Volume",
+      "ControlType": 0,
       "MinValue": 0.0,
       "MaxValue": 1.0,
       "IsInverted": false
@@ -24,7 +24,7 @@
       "Channel": 0,
       "ControlNumber": 3,
       "TargetChannelIndex": 2,
-      "ControlType": "Volume",
+      "ControlType": 0,
       "MinValue": 0.0,
       "MaxValue": 1.0,
       "IsInverted": false
@@ -33,7 +33,7 @@
       "Channel": 0,
       "ControlNumber": 4,
       "TargetChannelIndex": 3,
-      "ControlType": "Volume",
+      "ControlType": 0,
       "MinValue": 0.0,
       "MaxValue": 1.0,
       "IsInverted": false
@@ -42,7 +42,7 @@
       "Channel": 0,
       "ControlNumber": 5,
       "TargetChannelIndex": 4,
-      "ControlType": "Volume",
+      "ControlType": 0,
       "MinValue": 0.0,
       "MaxValue": 1.0,
       "IsInverted": false
@@ -51,7 +51,7 @@
       "Channel": 0,
       "ControlNumber": 6,
       "TargetChannelIndex": 5,
-      "ControlType": "Volume",
+      "ControlType": 0,
       "MinValue": 0.0,
       "MaxValue": 1.0,
       "IsInverted": false
@@ -60,7 +60,7 @@
       "Channel": 0,
       "ControlNumber": 7,
       "TargetChannelIndex": 6,
-      "ControlType": "Volume",
+      "ControlType": 0,
       "MinValue": 0.0,
       "MaxValue": 1.0,
       "IsInverted": false
@@ -69,7 +69,7 @@
       "Channel": 0,
       "ControlNumber": 8,
       "TargetChannelIndex": 7,
-      "ControlType": "Volume",
+      "ControlType": 0,
       "MinValue": 0.0,
       "MaxValue": 1.0,
       "IsInverted": false
@@ -78,7 +78,7 @@
       "Channel": 0,
       "ControlNumber": 8,
       "TargetChannelIndex": 0,
-      "ControlType": "Mute",
+      "ControlType": 1,
       "MinValue": 0.0,
       "MaxValue": 1.0,
       "IsInverted": false
@@ -87,7 +87,7 @@
       "Channel": 0,
       "ControlNumber": 9,
       "TargetChannelIndex": 1,
-      "ControlType": "Mute",
+      "ControlType": 1,
       "MinValue": 0.0,
       "MaxValue": 1.0,
       "IsInverted": false
@@ -96,7 +96,7 @@
       "Channel": 0,
       "ControlNumber": 10,
       "TargetChannelIndex": 2,
-      "ControlType": "Mute",
+      "ControlType": 1,
       "MinValue": 0.0,
       "MaxValue": 1.0,
       "IsInverted": false
@@ -105,7 +105,7 @@
       "Channel": 0,
       "ControlNumber": 11,
       "TargetChannelIndex": 3,
-      "ControlType": "Mute",
+      "ControlType": 1,
       "MinValue": 0.0,
       "MaxValue": 1.0,
       "IsInverted": false
@@ -114,7 +114,7 @@
       "Channel": 0,
       "ControlNumber": 91,
       "TargetChannelIndex": -1,
-      "ControlType": "TransportPlay",
+      "ControlType": 9,
       "MinValue": 0.0,
       "MaxValue": 1.0,
       "IsInverted": false
@@ -123,7 +123,7 @@
       "Channel": 0,
       "ControlNumber": 92,
       "TargetChannelIndex": -1,
-      "ControlType": "TransportPause",
+      "ControlType": 10,
       "MinValue": 0.0,
       "MaxValue": 1.0,
       "IsInverted": false
@@ -132,7 +132,7 @@
       "Channel": 0,
       "ControlNumber": 93,
       "TargetChannelIndex": -1,
-      "ControlType": "TransportPrevious",
+      "ControlType": 12,
       "MinValue": 0.0,
       "MaxValue": 1.0,
       "IsInverted": false
@@ -141,7 +141,7 @@
       "Channel": 0,
       "ControlNumber": 94,
       "TargetChannelIndex": -1,
-      "ControlType": "TransportNext",
+      "ControlType": 11,
       "MinValue": 0.0,
       "MaxValue": 1.0,
       "IsInverted": false

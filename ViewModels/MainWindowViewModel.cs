@@ -1407,6 +1407,47 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Reloads mappings and optionally channels from the configuration service
+    /// </summary>
+    public void ReloadFromConfiguration(bool reloadChannels)
+    {
+        if (_configurationService == null) return;
+
+        var settings = _configurationService.CurrentSettings;
+
+        // Reload MIDI mappings
+        _midiMappings.Clear();
+        foreach (var mapping in settings.MidiMappings)
+        {
+            var key = (mapping.Channel, mapping.ControlNumber);
+            _midiMappings[key] = mapping;
+        }
+
+        // Reload channels if requested
+        if (reloadChannels && settings.Channels.Count > 0)
+        {
+            Channels.Clear();
+            foreach (var channelConfig in settings.Channels)
+            {
+                var channelVm = new ChannelViewModel();
+                channelVm.LoadConfiguration(channelConfig);
+                SubscribeToChannelEvents(channelVm);
+                Channels.Add(channelVm);
+            }
+            UpdateWindowSize();
+            
+            // Relink sessions if available
+            if (AvailableSessions.Count > 0)
+            {
+                RelinkChannelSessions();
+            }
+        }
+
+        StatusMessage = $"Loaded {_midiMappings.Count} MIDI mappings";
+        Console.WriteLine($"Reloaded {_midiMappings.Count} mappings from configuration");
+    }
+
+    /// <summary>
     /// Syncs all UI state (channels, mappings, theme, device) to CurrentSettings in memory.
     /// Call this before any save operation to ensure CurrentSettings is up-to-date.
     /// </summary>
