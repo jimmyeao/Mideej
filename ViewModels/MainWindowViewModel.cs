@@ -2,7 +2,11 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mideej.Models;
 using Mideej.Services;
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 
 namespace Mideej.ViewModels;
@@ -15,6 +19,10 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IMidiService? _midiService;
     private readonly IAudioSessionManager? _audioSessionManager;
     private readonly IConfigurationService? _configurationService;
+    private readonly IMediaControlService? _mediaControlService;
+
+    // Track simple transport state for LED feedback
+    private bool _isPlaying;
 
     [ObservableProperty]
     private string _title = "Mideej - MIDI Audio Mixer";
@@ -32,7 +40,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private ChannelViewModel? _channelAwaitingMapping;
 
     [ObservableProperty]
-    private string _controlTypeToMap = "Volume"; // Volume, Mute, Solo, Record, Select
+    private string _controlTypeToMap = "Volume"; // Volume, Mute, Solo, Record, Select, TransportPlay, TransportPause, TransportNext, TransportPrevious
 
     [ObservableProperty]
     private string _statusMessage = "Ready";
@@ -95,11 +103,13 @@ public partial class MainWindowViewModel : ViewModelBase
     public MainWindowViewModel(
         IMidiService midiService,
         IAudioSessionManager audioSessionManager,
-        IConfigurationService configurationService)
+        IConfigurationService configurationService,
+        IMediaControlService mediaControlService)
     {
         _midiService = midiService;
         _audioSessionManager = audioSessionManager;
         _configurationService = configurationService;
+        _mediaControlService = mediaControlService;
 
         Initialize();
     }
@@ -271,6 +281,35 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void StartTransportMapping(string controlType)
+    {
+        if (_midiService == null)
+        {
+            StatusMessage = "MIDI service not available";
+            return;
+        }
+        if (!IsMidiConnected)
+        {
+            StatusMessage = "Please connect a MIDI device first";
+            return;
+        }
+        ControlTypeToMap = controlType; // e.g., TransportPlay
+        ChannelAwaitingMapping = null; // global mapping
+        IsMappingModeActive = true;
+        _midiService.StartMappingMode();
+        var label = controlType switch
+        {
+            "TransportPlay" => "Play",
+            "TransportPause" => "Pause",
+            "TransportNext" => "Next",
+            "TransportPrevious" => "Previous",
+            _ => controlType
+        };
+        StatusMessage = $"MAPPING MODE: Press a MIDI control to map to {label}";
+        Console.WriteLine($"=== GLOBAL MAPPING MODE STARTED for {label} ===");
+    }
+
+    [RelayCommand]
     private void CancelMappingMode()
     {
         if (ChannelAwaitingMapping != null)
@@ -302,6 +341,26 @@ public partial class MainWindowViewModel : ViewModelBase
         SubscribeToChannelEvents(newChannel);
         Channels.Add(newChannel);
         UpdateWindowSize();
+    }
+
+    // Transport action commands (invoke immediately from UI)
+    [RelayCommand]
+    private void TransportPlay() => PerformTransportAction(MidiControlType.TransportPlay);
+
+    [RelayCommand]
+    private void TransportPause() => PerformTransportAction(MidiControlType.TransportPause);
+
+    [RelayCommand]
+    private void TransportNext() => PerformTransportAction(MidiControlType.TransportNext);
+
+    [RelayCommand]
+    private void TransportPrevious() => PerformTransportAction(MidiControlType.TransportPrevious);
+
+    // helper to open the context menu from Map button (bind via EventSetter in XAML if needed)
+    [RelayCommand]
+    private void ShowTransportMapMenu(object parameter)
+    {
+        // Handled in XAML via ContextMenu on the button, this exists to satisfy binding
     }
 
     /// <summary>
@@ -418,20 +477,21 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         // Open the session assignment dialog with multi-selection support
-        var dialog = new SessionAssignmentDialog(AvailableSessions, mappedSessionIds)
+        var dialog = new SessionAssignmentDialog(AvailableSessions, mappedSessionIds, channel.AssignedSessions.Select(s => s.SessionId))
         {
             Owner = Application.Current.MainWindow
         };
 
         if (dialog.ShowDialog() == true && dialog.SelectedSessions.Count > 0)
         {
-            // Clear existing session assignments from THIS channel
-            channel.AssignedSessions.Clear();
+            // Update intended assignments from dialog selection
+            channel.SetIntendedAssignments(dialog.SelectedSessions);
 
-            // For each selected session, remove it from any other channels (exclusive mapping)
+            // Clear and set live assigned sessions
+            channel.AssignedSessions.Clear();
             foreach (var session in dialog.SelectedSessions)
             {
-                // Remove this session from all OTHER channels
+                // Remove this session from all OTHER channels (exclusive mapping)
                 foreach (var otherChannel in Channels)
                 {
                     if (otherChannel != channel)
@@ -442,7 +502,6 @@ public partial class MainWindowViewModel : ViewModelBase
                             otherChannel.AssignedSessions.Remove(existingSession);
                             Console.WriteLine($"Removed '{session.DisplayName}' from {otherChannel.Name} (exclusive mapping)");
 
-                            // Reset channel name if it has no more sessions
                             if (otherChannel.AssignedSessions.Count == 0)
                             {
                                 otherChannel.Name = $"Channel {otherChannel.Index + 1}";
@@ -452,7 +511,6 @@ public partial class MainWindowViewModel : ViewModelBase
                     }
                 }
 
-                // Now assign to the target channel
                 channel.AssignedSessions.Add(session);
             }
 
@@ -465,7 +523,6 @@ public partial class MainWindowViewModel : ViewModelBase
             }
             else
             {
-                // Multiple sessions assigned
                 channel.Name = $"{dialog.SelectedSessions.Count} Sessions";
                 channel.SessionType = dialog.SelectedSessions[0].SessionType;
             }
@@ -508,19 +565,32 @@ public partial class MainWindowViewModel : ViewModelBase
         Console.WriteLine($"MIDI CC: Ch{e.Channel} CC{e.Controller} Val{e.Value}");
 
         // Handle MIDI CC messages
-        if (IsMappingModeActive && ChannelAwaitingMapping != null)
+        if (IsMappingModeActive)
         {
-            // Only map CC to Volume if that's what the user selected
-            if (ControlTypeToMap == "Volume")
+            if (ChannelAwaitingMapping != null)
             {
-                Console.WriteLine($"  Mapping CC to Volume");
-                CreateMapping(e.Channel, e.Controller, ChannelAwaitingMapping);
-                CancelMappingMode();
+                // Only map CC to Volume if that's what the user selected
+                if (ControlTypeToMap == "Volume")
+                {
+                    Console.WriteLine($"  Mapping CC to Volume");
+                    CreateMapping(e.Channel, e.Controller, ChannelAwaitingMapping);
+                    CancelMappingMode();
+                }
+                else
+                {
+                    StatusMessage = $"Expecting a button press for {ControlTypeToMap}, but received CC message. Try a fader/knob for Volume mapping.";
+                    Console.WriteLine($"  Ignoring CC - expecting {ControlTypeToMap}");
+                }
             }
             else
             {
-                StatusMessage = $"Expecting a button press for {ControlTypeToMap}, but received CC message. Try a fader/knob for Volume mapping.";
-                Console.WriteLine($"  Ignoring CC - expecting {ControlTypeToMap}");
+                // Global transport mapping via CC
+                var controlType = ResolveTransportControlType(ControlTypeToMap);
+                if (controlType != null)
+                {
+                    CreateGlobalCcMapping(e.Channel, e.Controller, controlType.Value);
+                    CancelMappingMode();
+                }
             }
         }
         else
@@ -536,21 +606,34 @@ public partial class MainWindowViewModel : ViewModelBase
         Console.WriteLine($"MIDI Note On: Ch{e.Channel} Note#{e.NoteNumber} Vel{e.Velocity}");
 
         // Handle MIDI note messages (buttons)
-        if (IsMappingModeActive && ChannelAwaitingMapping != null)
+        if (IsMappingModeActive)
         {
-            // Use the control type selected by the user
-            MidiControlType buttonType = ControlTypeToMap switch
+            if (ChannelAwaitingMapping != null)
             {
-                "Mute" => MidiControlType.Mute,
-                "Solo" => MidiControlType.Solo,
-                "Record" => MidiControlType.Record,
-                "Select" => MidiControlType.Select,
-                _ => MidiControlType.Mute
-            };
+                // Use the control type selected by the user
+                MidiControlType buttonType = ControlTypeToMap switch
+                {
+                    "Mute" => MidiControlType.Mute,
+                    "Solo" => MidiControlType.Solo,
+                    "Record" => MidiControlType.Record,
+                    "Select" => MidiControlType.Select,
+                    _ => MidiControlType.Mute
+                };
 
-            Console.WriteLine($"  Mapping button to: {buttonType}");
-            CreateNoteMapping(e.Channel, e.NoteNumber, ChannelAwaitingMapping, buttonType);
-            CancelMappingMode();
+                Console.WriteLine($"  Mapping button to: {buttonType}");
+                CreateNoteMapping(e.Channel, e.NoteNumber, ChannelAwaitingMapping, buttonType);
+                CancelMappingMode();
+            }
+            else
+            {
+                // Global transport mapping via Note
+                var controlType = ResolveTransportControlType(ControlTypeToMap);
+                if (controlType != null)
+                {
+                    CreateGlobalNoteMapping(e.Channel, e.NoteNumber, controlType.Value);
+                    CancelMappingMode();
+                }
+            }
         }
         else
         {
@@ -569,22 +652,28 @@ public partial class MainWindowViewModel : ViewModelBase
         Console.WriteLine($"MIDI Pitch Bend: Ch{e.Channel} RawValue={e.Value} Display={value127}/127 Volume={volumePercent:F1}%");
         Console.WriteLine($"  IsMappingModeActive={IsMappingModeActive}, ChannelAwaitingMapping={ChannelAwaitingMapping?.Name ?? "null"}");
 
-        // In Mackie mode, the fader channel directly corresponds to the mixer channel (1-8)
-        // So channel 0 = Channel 1, channel 1 = Channel 2, etc.
-
-        if (IsMappingModeActive && ChannelAwaitingMapping != null)
+        if (IsMappingModeActive)
         {
-            // Only map pitch bend to Volume if that's what the user selected
-            if (ControlTypeToMap == "Volume")
+            if (ChannelAwaitingMapping != null)
             {
-                Console.WriteLine($"  Creating fader mapping for channel {ChannelAwaitingMapping.Name}");
-                CreateFaderMapping(e.Channel, ChannelAwaitingMapping);
-                CancelMappingMode();
+                // Only map pitch bend to Volume if that's what the user selected
+                if (ControlTypeToMap == "Volume")
+                {
+                    Console.WriteLine($"  Creating fader mapping for channel {ChannelAwaitingMapping.Name}");
+                    CreateFaderMapping(e.Channel, ChannelAwaitingMapping);
+                    CancelMappingMode();
+                }
+                else
+                {
+                    StatusMessage = $"Expecting a button press for {ControlTypeToMap}, but received fader. Try pressing a button.";
+                    Console.WriteLine($"  Ignoring pitch bend - expecting {ControlTypeToMap}");
+                }
             }
             else
             {
-                StatusMessage = $"Expecting a button press for {ControlTypeToMap}, but received fader. Try pressing a button.";
-                Console.WriteLine($"  Ignoring pitch bend - expecting {ControlTypeToMap}");
+                // Global mapping doesn't use pitch bend
+                StatusMessage = "Pitch bend is not supported for transport controls. Press a button instead.";
+                Console.WriteLine("  Ignoring pitch bend for transport mapping");
             }
         }
         else
@@ -592,6 +681,56 @@ public partial class MainWindowViewModel : ViewModelBase
             // Apply fader value to the mapped channel
             ApplyMidiFader(e.Channel, e.Value);
         }
+    }
+
+    private void CreateGlobalNoteMapping(int midiChannel, int noteNumber, MidiControlType controlType)
+    {
+        var mapping = new MidiMapping
+        {
+            Channel = midiChannel,
+            ControlNumber = noteNumber,
+            TargetChannelIndex = -1, // global
+            ControlType = controlType
+        };
+        var key = (midiChannel, noteNumber);
+        _midiMappings[key] = mapping;
+        if (_configurationService != null)
+        {
+            _configurationService.CurrentSettings.MidiMappings = _midiMappings.Values.ToList();
+            _ = _configurationService.SaveCurrentSettingsAsync();
+        }
+        StatusMessage = $"Mapped MIDI CH{midiChannel + 1} Note{noteNumber} to {controlType}";
+    }
+
+    private void CreateGlobalCcMapping(int midiChannel, int controller, MidiControlType controlType)
+    {
+        var mapping = new MidiMapping
+        {
+            Channel = midiChannel,
+            ControlNumber = controller,
+            TargetChannelIndex = -1,
+            ControlType = controlType
+        };
+        var key = (midiChannel, controller);
+        _midiMappings[key] = mapping;
+        if (_configurationService != null)
+        {
+            _configurationService.CurrentSettings.MidiMappings = _midiMappings.Values.ToList();
+            _ = _configurationService.SaveCurrentSettingsAsync();
+        }
+        StatusMessage = $"Mapped MIDI CH{midiChannel + 1} CC{controller} to {controlType}";
+    }
+
+    private MidiControlType? ResolveTransportControlType(string controlType)
+    {
+        return controlType switch
+        {
+            "TransportPlay" => MidiControlType.TransportPlay,
+            "TransportPause" => MidiControlType.TransportPause,
+            "TransportNext" => MidiControlType.TransportNext,
+            "TransportPrevious" => MidiControlType.TransportPrevious,
+            _ => null
+        };
     }
 
     private void CreateNoteMapping(int midiChannel, int noteNumber, ChannelViewModel channel, MidiControlType controlType)
@@ -649,7 +788,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        if (mapping.TargetChannelIndex >= Channels.Count)
+        if (mapping.TargetChannelIndex >= Channels.Count || mapping.TargetChannelIndex < 0)
         {
             return;
         }
@@ -672,6 +811,13 @@ public partial class MainWindowViewModel : ViewModelBase
         var key = (midiChannel, noteNumber);
         if (!_midiMappings.TryGetValue(key, out var mapping))
         {
+            return;
+        }
+
+        if (mapping.TargetChannelIndex == -1)
+        {
+            // Global transport buttons handled centrally (LED feedback included)
+            PerformTransportAction(mapping.ControlType);
             return;
         }
 
@@ -718,154 +864,6 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private void ApplyMuteToSessions(ChannelViewModel channel)
-    {
-        if (_audioSessionManager == null) return;
-
-        // Check if any channel is currently soloed
-        var soloedChannel = Channels.FirstOrDefault(c => c.IsSoloed);
-
-        if (soloedChannel != null)
-        {
-            // Solo mode is active - only allow mute changes on the soloed channel
-            // Non-soloed channels must remain muted regardless of their IsMuted flag
-            if (channel != soloedChannel)
-            {
-                // Don't apply mute changes to non-soloed channels
-                // They should stay muted due to solo mode
-                Console.WriteLine($"Mute toggle ignored for {channel.Name} - {soloedChannel.Name} is soloed");
-                return;
-            }
-        }
-
-        // Apply the mute change
-        foreach (var session in channel.AssignedSessions)
-        {
-            _audioSessionManager.SetSessionMute(session.SessionId, channel.IsMuted);
-        }
-    }
-
-    private void ApplySoloLogic()
-    {
-        // If any channel is soloed, mute all non-soloed channels
-        var soloedChannels = Channels.Where(c => c.IsSoloed).ToList();
-
-        if (soloedChannels.Any())
-        {
-            // Mute all non-soloed channels
-            foreach (var channel in Channels)
-            {
-                bool shouldBeMuted = !channel.IsSoloed;
-                ApplyEffectiveMute(channel, shouldBeMuted);
-            }
-        }
-        else
-        {
-            // No solo active, restore user mute states
-            foreach (var channel in Channels)
-            {
-                ApplyEffectiveMute(channel, channel.IsMuted);
-            }
-        }
-    }
-
-    private void ApplyEffectiveMute(ChannelViewModel channel, bool isMuted)
-    {
-        if (_audioSessionManager == null) return;
-
-        foreach (var session in channel.AssignedSessions)
-        {
-            // Don't mute master volume during solo
-            if (session.SessionId == "master_output")
-            {
-                continue;
-            }
-
-            _audioSessionManager.SetSessionMute(session.SessionId, isMuted);
-        }
-    }
-
-    private void OnMidiDeviceStateChanged(object? sender, MidiDeviceEventArgs e)
-    {
-        IsMidiConnected = e.IsConnected;
-        StatusMessage = e.IsConnected ? $"Connected to {e.Device.Name}" : "MIDI device disconnected";
-    }
-
-    private void OnAudioSessionsChanged(object? sender, AudioSessionChangedEventArgs e)
-    {
-        AvailableSessions.Clear();
-        foreach (var session in e.Sessions)
-        {
-            AvailableSessions.Add(session);
-        }
-
-        // Relink channel sessions if we have pending configs
-        if (_pendingChannelConfigs.Count > 0)
-        {
-            RelinkChannelSessions();
-        }
-    }
-
-    /// <summary>
-    /// Relinks channel sessions from saved configuration to actual audio session objects
-    /// </summary>
-    private void RelinkChannelSessions()
-    {
-        for (int i = 0; i < Channels.Count && i < _pendingChannelConfigs.Count; i++)
-        {
-            var channel = Channels[i];
-            var config = _pendingChannelConfigs[i];
-
-            if (config.AssignedSessionIds.Count > 0)
-            {
-                channel.RelinkSessions(config.AssignedSessionIds, AvailableSessions);
-                Console.WriteLine($"Relinked {channel.AssignedSessions.Count} sessions to {channel.Name}");
-            }
-        }
-    }
-
-    private void OnPeakLevelsUpdated(object? sender, PeakLevelEventArgs e)
-    {
-        // Update VU meters
-        foreach (var channel in Channels)
-        {
-            float maxPeak = 0;
-            foreach (var session in channel.AssignedSessions)
-            {
-                if (e.PeakLevels.TryGetValue(session.SessionId, out float peak))
-                {
-                    maxPeak = Math.Max(maxPeak, peak);
-                }
-            }
-            channel.PeakLevel = maxPeak;
-        }
-    }
-
-    private void CreateMapping(int midiChannel, int controller, ChannelViewModel channel)
-    {
-        // Create a new MIDI mapping for volume control
-        var mapping = new MidiMapping
-        {
-            Channel = midiChannel,
-            ControlNumber = controller,
-            TargetChannelIndex = channel.Index,
-            ControlType = MidiControlType.Volume
-        };
-
-        // Store the mapping
-        var key = (midiChannel, controller);
-        _midiMappings[key] = mapping;
-
-        // Update configuration
-        if (_configurationService != null)
-        {
-            _configurationService.CurrentSettings.MidiMappings = _midiMappings.Values.ToList();
-            _ = _configurationService.SaveCurrentSettingsAsync();
-        }
-
-        StatusMessage = $"Mapped MIDI CH{midiChannel + 1} CC{controller} to {channel.Name}";
-    }
-
     private void ApplyMidiControl(int midiChannel, int controller, int value)
     {
         // Look up the mapping
@@ -873,6 +871,12 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!_midiMappings.TryGetValue(key, out var mapping))
         {
             // No mapping found - ignore this MIDI message
+            return;
+        }
+
+        if (mapping.TargetChannelIndex == -1)
+        {
+            PerformTransportAction(mapping.ControlType);
             return;
         }
 
@@ -924,6 +928,35 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private void PerformTransportAction(MidiControlType controlType)
+    {
+        switch (controlType)
+        {
+            case MidiControlType.TransportPlay:
+                _mediaControlService?.Play();
+                _isPlaying = true;
+                StatusMessage = "Media: Play";
+                UpdatePlayPauseLeds();
+                break;
+            case MidiControlType.TransportPause:
+                _mediaControlService?.Pause();
+                _isPlaying = false;
+                StatusMessage = "Media: Pause";
+                UpdatePlayPauseLeds();
+                break;
+            case MidiControlType.TransportNext:
+                _mediaControlService?.NextTrack();
+                StatusMessage = "Media: Next";
+                BlinkTransportLed(MidiControlType.TransportNext);
+                break;
+            case MidiControlType.TransportPrevious:
+                _mediaControlService?.PreviousTrack();
+                StatusMessage = "Media: Previous";
+                BlinkTransportLed(MidiControlType.TransportPrevious);
+                break;
+        }
+    }
+
     private void SendVolumeFeedback(int midiChannel, int controller, int value)
     {
         // Send the same value back to the controller for motorized faders
@@ -938,6 +971,67 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             _audioSessionManager.SetSessionVolume(session.SessionId, channel.Volume);
         }
+    }
+
+    // --- Transport LED helpers ---
+    private void UpdatePlayPauseLeds()
+    {
+        // Play LED on when playing; Pause LED on when paused
+        SetTransportLed(MidiControlType.TransportPlay, _isPlaying);
+        SetTransportLed(MidiControlType.TransportPause, !_isPlaying);
+    }
+
+    private void SetTransportLed(MidiControlType controlType, bool on)
+    {
+        if (_midiService == null) return;
+        foreach (var kvp in _midiMappings)
+        {
+            var mapping = kvp.Value;
+            if (mapping.TargetChannelIndex == -1 && mapping.ControlType == controlType)
+            {
+                int ch = mapping.Channel;
+                int num = mapping.ControlNumber;
+                int val = on ? 127 : 0;
+
+                // Try Note LED
+                _midiService.SendNoteOn(ch, num, val);
+                // Also try CC LED for controllers using CC for buttons
+                _midiService.SendControlChange(ch, num, val);
+            }
+        }
+    }
+
+    private void BlinkTransportLed(MidiControlType controlType)
+    {
+        if (_midiService == null) return;
+        _ = Task.Run(async () =>
+        {
+            foreach (var kvp in _midiMappings)
+            {
+                var mapping = kvp.Value;
+                if (mapping.TargetChannelIndex == -1 && mapping.ControlType == controlType)
+                {
+                    int ch = mapping.Channel;
+                    int num = mapping.ControlNumber;
+                    // ON
+                    _midiService.SendNoteOn(ch, num, 127);
+                    _midiService.SendControlChange(ch, num, 127);
+                }
+            }
+            await Task.Delay(120);
+            foreach (var kvp in _midiMappings)
+            {
+                var mapping = kvp.Value;
+                if (mapping.TargetChannelIndex == -1 && mapping.ControlType == controlType)
+                {
+                    int ch = mapping.Channel;
+                    int num = mapping.ControlNumber;
+                    // OFF
+                    _midiService.SendNoteOn(ch, num, 0);
+                    _midiService.SendControlChange(ch, num, 0);
+                }
+            }
+        });
     }
 
     private async void LoadConfiguration()
@@ -1009,5 +1103,160 @@ public partial class MainWindowViewModel : ViewModelBase
         settings.MidiMappings = _midiMappings.Values.ToList();
 
         await _configurationService.SaveSettingsAsync(settings);
+    }
+
+    private void OnMidiDeviceStateChanged(object? sender, MidiDeviceEventArgs e)
+    {
+        IsMidiConnected = e.IsConnected;
+        StatusMessage = e.IsConnected ? $"Connected to {e.Device.Name}" : "MIDI device disconnected";
+    }
+
+    private void OnAudioSessionsChanged(object? sender, AudioSessionChangedEventArgs e)
+    {
+        AvailableSessions.Clear();
+        foreach (var session in e.Sessions)
+        {
+            AvailableSessions.Add(session);
+        }
+
+        // Always relink channel sessions on session changes
+        RelinkChannelSessions();
+    }
+
+    /// <summary>
+    /// Relinks channel sessions from saved configuration to actual audio session objects
+    /// </summary>
+    private void RelinkChannelSessions()
+    {
+        if (_pendingChannelConfigs.Count > 0)
+        {
+            for (int i = 0; i < Channels.Count && i < _pendingChannelConfigs.Count; i++)
+            {
+                var channel = Channels[i];
+                var config = _pendingChannelConfigs[i];
+
+                channel.RelinkSessions(config, AvailableSessions);
+                Console.WriteLine($"Relinked {channel.AssignedSessions.Count} sessions to {channel.Name} (from pending config)");
+            }
+
+            _pendingChannelConfigs.Clear();
+            return;
+        }
+
+        // Otherwise, use channels' intended assignments to relink dynamically
+        foreach (var channel in Channels)
+        {
+            channel.RelinkFromIntended(AvailableSessions);
+            Console.WriteLine($"Relinked {channel.AssignedSessions.Count} sessions to {channel.Name} (dynamic refresh)");
+        }
+    }
+
+    private void OnPeakLevelsUpdated(object? sender, PeakLevelEventArgs e)
+    {
+        // Update VU meters
+        foreach (var channel in Channels)
+        {
+            float maxPeak = 0;
+            foreach (var session in channel.AssignedSessions)
+            {
+                if (e.PeakLevels.TryGetValue(session.SessionId, out float peak))
+                {
+                    maxPeak = Math.Max(maxPeak, peak);
+                }
+            }
+            channel.PeakLevel = maxPeak;
+        }
+    }
+
+    private void CreateMapping(int midiChannel, int controller, ChannelViewModel channel)
+    {
+        // Create a new MIDI mapping for volume control
+        var mapping = new MidiMapping
+        {
+            Channel = midiChannel,
+            ControlNumber = controller,
+            TargetChannelIndex = channel.Index,
+            ControlType = MidiControlType.Volume
+        };
+
+        // Store the mapping
+        var key = (midiChannel, controller);
+        _midiMappings[key] = mapping;
+
+        // Update configuration
+        if (_configurationService != null)
+        {
+            _configurationService.CurrentSettings.MidiMappings = _midiMappings.Values.ToList();
+            _ = _configurationService.SaveCurrentSettingsAsync();
+        }
+
+        StatusMessage = $"Mapped MIDI CH{midiChannel + 1} CC{controller} to {channel.Name}";
+    }
+
+    private void ApplySoloLogic()
+    {
+        // If any channel is soloed, mute all non-soloed channels
+        var soloedChannels = Channels.Where(c => c.IsSoloed).ToList();
+
+        if (soloedChannels.Any())
+        {
+            // Mute all non-soloed channels
+            foreach (var channel in Channels)
+            {
+                bool shouldBeMuted = !channel.IsSoloed;
+                ApplyEffectiveMute(channel, shouldBeMuted);
+            }
+        }
+        else
+        {
+            // No solo active, restore user mute states
+            foreach (var channel in Channels)
+            {
+                ApplyEffectiveMute(channel, channel.IsMuted);
+            }
+        }
+    }
+
+    private void ApplyEffectiveMute(ChannelViewModel channel, bool isMuted)
+    {
+        if (_audioSessionManager == null) return;
+
+        foreach (var session in channel.AssignedSessions)
+        {
+            // Don't mute master volume during solo
+            if (session.SessionId == "master_output")
+            {
+                continue;
+            }
+
+            _audioSessionManager.SetSessionMute(session.SessionId, isMuted);
+        }
+    }
+
+    private void ApplyMuteToSessions(ChannelViewModel channel)
+    {
+        if (_audioSessionManager == null) return;
+
+        // Check if any channel is currently soloed
+        var soloedChannel = Channels.FirstOrDefault(c => c.IsSoloed);
+
+        if (soloedChannel != null)
+        {
+            // Solo mode is active - only allow mute changes on the soloed channel
+            // Non-soloed channels must remain muted regardless of their IsMuted flag
+            if (channel != soloedChannel)
+            {
+                // Don't apply mute changes to non-soloed channels
+                // They should stay muted due to solo mode
+                Console.WriteLine($"Mute toggle ignored for {channel.Name} - {soloedChannel.Name} is soloed");
+                return;
+            }
+        }
+
+        // Apply the mute change
+        foreach (var session in channel.AssignedSessions)
+        {
+            _audioSessionManager.SetSessionMute(session.SessionId, channel.IsMuted);
+        }
     }
 }

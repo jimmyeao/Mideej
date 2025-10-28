@@ -63,4 +63,13 @@ public partial class MainWindow : Window
             WindowState = WindowState.Maximized;
         }
     }
+
+    private void MapTransportButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.ContextMenu != null)
+        {
+            fe.ContextMenu.PlacementTarget = fe;
+            fe.ContextMenu.IsOpen = true;
+        }
+    }
 }

@@ -66,16 +66,52 @@ public class MidiService : IMidiService, IDisposable
                 _midiIn.MessageReceived += OnMidiMessageReceived;
                 _midiIn.ErrorReceived += OnMidiErrorReceived;
 
-                // Create new MIDI output (same device)
+                // Resolve matching MIDI output by name
+                string? inName = null;
                 try
                 {
-                    _midiOut = new MidiOut(deviceId);
-                    Console.WriteLine($"MIDI Output initialized for device {deviceId}");
+                    var inCaps = MidiIn.DeviceInfo(deviceId);
+                    inName = inCaps.ProductName;
                 }
-                catch (Exception ex)
+                catch { }
+
+                int outIndex = -1;
+                if (!string.IsNullOrEmpty(inName))
                 {
-                    Console.WriteLine($"Warning: Could not open MIDI output: {ex.Message}");
-                    // Continue without output - input will still work
+                    for (int i = 0; i < MidiOut.NumberOfDevices; i++)
+                    {
+                        var outCaps = MidiOut.DeviceInfo(i);
+                        if (string.Equals(outCaps.ProductName, inName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            outIndex = i;
+                            break;
+                        }
+                        // Some drivers add IN/OUT suffixes; try contains
+                        if (outCaps.ProductName.Contains(inName, StringComparison.OrdinalIgnoreCase) || inName.Contains(outCaps.ProductName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            outIndex = i;
+                            // keep searching for exact match, but remember this candidate
+                        }
+                    }
+                }
+
+                if (outIndex >= 0)
+                {
+                    _midiOut = new MidiOut(outIndex);
+                    Console.WriteLine($"MIDI Output initialized for '{inName}' at index {outIndex}");
+                }
+                else
+                {
+                    // Fallback: try using the same index
+                    try
+                    {
+                        _midiOut = new MidiOut(deviceId);
+                        Console.WriteLine($"MIDI Output initialized (fallback) at index {deviceId}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Warning: Could not open MIDI output (fallback): {ex.Message}");
+                    }
                 }
 
                 // Get device info
@@ -91,7 +127,7 @@ public class MidiService : IMidiService, IDisposable
                 // Start receiving MIDI messages
                 _midiIn.Start();
 
-                Console.WriteLine($"MIDI Input started for device {deviceId}");
+                Console.WriteLine($"MIDI Input started for device {deviceId} ('{_currentDevice.Name}')");
 
                 // Raise device state changed event
                 DeviceStateChanged?.Invoke(this, new MidiDeviceEventArgs

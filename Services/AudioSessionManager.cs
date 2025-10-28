@@ -25,6 +25,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     private int _vuMeterInterval = 30;
     private DateTime _lastSessionRefresh = DateTime.MinValue;
     private const int SessionRefreshIntervalMs = 2000; // Refresh every 2 seconds
+    private const int SessionGraceRemovalMs = 15000; // Keep missing sessions for 15s to avoid UI churn
 
     public event EventHandler<AudioSessionChangedEventArgs>? SessionsChanged;
     public event EventHandler<SessionVolumeChangedEventArgs>? SessionVolumeChanged;
@@ -32,10 +33,11 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
     private class SessionWrapper
     {
-        public AudioSessionControl Session { get; set; } = null!;
+        public AudioSessionControl? Session { get; set; }
         public AudioSessionInfo Info { get; set; } = null!;
         public SimpleAudioVolume? VolumeControl { get; set; }
         public AudioMeterInformation? MeterInfo { get; set; }
+        public DateTime LastSeen { get; set; }
     }
 
     public List<AudioSessionInfo> GetActiveSessions()
@@ -123,7 +125,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 }
             }
 
-            // Add application sessions
+            // Add application sessions (kept across inactive periods)
             foreach (var wrapper in _sessions.Values)
             {
                 if (wrapper.Info != null)
@@ -174,6 +176,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 {
                     wrapper.VolumeControl.Volume = volume;
                     wrapper.Info.Volume = volume;
+                    wrapper.LastSeen = DateTime.Now;
                 }
             }
         }
@@ -215,6 +218,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 {
                     wrapper.VolumeControl.Mute = isMuted;
                     wrapper.Info.IsMuted = isMuted;
+                    wrapper.LastSeen = DateTime.Now;
                 }
             }
         }
@@ -356,41 +360,79 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
                     Console.WriteLine($"[RefreshSessions] Session {i}: PID={processId}, State={sessionState}");
 
-                    if (sessionState != AudioSessionState.AudioSessionStateActive)
+                    if (sessionState == AudioSessionState.AudioSessionStateExpired)
                     {
-                        Console.WriteLine($"[RefreshSessions]   -> Skipped (not active)");
+                        Console.WriteLine($"[RefreshSessions]   -> Skipped (expired)");
                         continue;
                     }
 
                     var sessionId = $"{processId}_{session.GetSessionIdentifier}";
-
                     currentSessionIds.Add(sessionId);
 
-                    if (!_sessions.ContainsKey(sessionId))
+                    if (_sessions.ContainsKey(sessionId))
                     {
-                        var info = CreateSessionInfo(session, processId);
-                        var wrapper = new SessionWrapper
-                        {
-                            Session = session,
-                            Info = info,
-                            VolumeControl = session.SimpleAudioVolume,
-                            MeterInfo = session.AudioMeterInformation
-                        };
-
-                        _sessions.TryAdd(sessionId, wrapper);
-                        newSessions.Add(info.DisplayName);
-                        Console.WriteLine($"[RefreshSessions]   -> NEW SESSION: {info.DisplayName} (PID: {processId})");
-                    }
-                    else
-                    {
-                        // Update existing session info
+                        // Update existing session wrapper by id
                         var wrapper = _sessions[sessionId];
+                        wrapper.Session = session;
+                        wrapper.VolumeControl = session.SimpleAudioVolume;
+                        wrapper.MeterInfo = session.AudioMeterInformation;
                         if (wrapper.VolumeControl != null)
                         {
                             wrapper.Info.Volume = wrapper.VolumeControl.Volume;
                             wrapper.Info.IsMuted = wrapper.VolumeControl.Mute;
                         }
+                        wrapper.LastSeen = DateTime.Now;
                         Console.WriteLine($"[RefreshSessions]   -> Existing session: {wrapper.Info.DisplayName}");
+                    }
+                    else
+                    {
+                        // Try to migrate an existing wrapper for the same process (session id changed)
+                        var migrate = _sessions.FirstOrDefault(kvp => kvp.Value.Info.ProcessId == processId);
+                        if (!string.IsNullOrEmpty(migrate.Key))
+                        {
+                            var wrapper = migrate.Value;
+                            // Update wrapper to point to new session, keep Info instance
+                            wrapper.Session = session;
+                            wrapper.VolumeControl = session.SimpleAudioVolume;
+                            wrapper.MeterInfo = session.AudioMeterInformation;
+                            wrapper.LastSeen = DateTime.Now;
+                            wrapper.Info.ProcessId = processId;
+                            try
+                            {
+                                // Update display name if empty
+                                if (string.IsNullOrWhiteSpace(wrapper.Info.DisplayName))
+                                {
+                                    var p = Process.GetProcessById(processId);
+                                    wrapper.Info.DisplayName = session.DisplayName;
+                                    if (string.IsNullOrWhiteSpace(wrapper.Info.DisplayName))
+                                        wrapper.Info.DisplayName = p.ProcessName;
+                                }
+                            }
+                            catch { }
+
+                            // Move dictionary key
+                            _sessions.TryRemove(migrate.Key, out _);
+                            _sessions[sessionId] = wrapper;
+                            newSessions.Add(wrapper.Info.DisplayName);
+                            Console.WriteLine($"[RefreshSessions]   -> MIGRATED: {wrapper.Info.DisplayName} oldKey={migrate.Key} newKey={sessionId}");
+                        }
+                        else
+                        {
+                            // Create new wrapper
+                            var info = CreateSessionInfo(session, processId);
+                            var wrapper = new SessionWrapper
+                            {
+                                Session = session,
+                                Info = info,
+                                VolumeControl = session.SimpleAudioVolume,
+                                MeterInfo = session.AudioMeterInformation,
+                                LastSeen = DateTime.Now
+                            };
+
+                            _sessions.TryAdd(sessionId, wrapper);
+                            newSessions.Add(info.DisplayName);
+                            Console.WriteLine($"[RefreshSessions]   -> NEW SESSION: {info.DisplayName} (PID: {processId})");
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -399,20 +441,27 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 }
             }
 
-            // Remove inactive sessions
-            var inactiveSessions = _sessions.Keys.Except(currentSessionIds).ToList();
-            foreach (var sessionId in inactiveSessions)
+            // Remove sessions that have not been seen for a grace period
+            var now = DateTime.Now;
+            foreach (var kvp in _sessions.ToArray())
             {
-                if (_sessions.TryRemove(sessionId, out var wrapper))
+                if (!currentSessionIds.Contains(kvp.Key))
                 {
-                    removedSessions.Add(wrapper.Info.DisplayName);
-                    Console.WriteLine($"[RefreshSessions]   -> REMOVED: {wrapper.Info.DisplayName}");
+                    var ageMs = (now - kvp.Value.LastSeen).TotalMilliseconds;
+                    if (ageMs > SessionGraceRemovalMs)
+                    {
+                        if (_sessions.TryRemove(kvp.Key, out var wrapper))
+                        {
+                            removedSessions.Add(wrapper.Info.DisplayName);
+                            Console.WriteLine($"[RefreshSessions]   -> REMOVED (grace expired): {wrapper.Info.DisplayName}");
+                        }
+                    }
                 }
             }
 
-            Console.WriteLine($"[RefreshSessions] Scan complete. Total active sessions: {_sessions.Count}, New: {newSessions.Count}, Removed: {removedSessions.Count}");
+            Console.WriteLine($"[RefreshSessions] Scan complete. Total tracked sessions: {_sessions.Count}, New: {newSessions.Count}, Removed: {removedSessions.Count}");
 
-            // Only notify if there were changes
+            // Only notify if there were changes or periodically to update meters
             if (newSessions.Count > 0 || removedSessions.Count > 0)
             {
                 Console.WriteLine($"[RefreshSessions] Notifying UI of session changes...");
@@ -482,7 +531,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             var now = DateTime.Now;
             var timeSinceLastRefresh = (now - _lastSessionRefresh).TotalMilliseconds;
 
-            if (_sessions.Count == 0 || timeSinceLastRefresh >= SessionRefreshIntervalMs)
+            if (timeSinceLastRefresh >= SessionRefreshIntervalMs)
             {
                 Console.WriteLine($"[VuMeterTimer] Triggering session refresh (time since last: {timeSinceLastRefresh:F0}ms)");
                 RefreshSessions();

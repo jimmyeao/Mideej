@@ -47,9 +47,14 @@ public partial class ChannelViewModel : ViewModelBase
     private AudioSessionType? _sessionType;
 
     /// <summary>
-    /// Audio sessions assigned to this channel
+    /// Audio sessions currently linked (live objects)
     /// </summary>
     public ObservableCollection<AudioSessionInfo> AssignedSessions { get; } = new();
+
+    /// <summary>
+    /// Stable intended assignments that should persist across restarts and session churn
+    /// </summary>
+    public List<SessionReference> IntendedAssignments { get; } = new();
 
     /// <summary>
     /// Event fired when volume changes (for applying to audio sessions)
@@ -147,8 +152,9 @@ public partial class ChannelViewModel : ViewModelBase
     [RelayCommand]
     private void ClearSession()
     {
-        // Clear all assigned sessions
+        // Clear all assigned sessions (live)
         AssignedSessions.Clear();
+        IntendedAssignments.Clear();
         Name = $"Channel {Index + 1}";
         SessionType = null;
 
@@ -160,6 +166,8 @@ public partial class ChannelViewModel : ViewModelBase
     private void RemoveSession(AudioSessionInfo session)
     {
         AssignedSessions.Remove(session);
+        // Also remove from intended assignments to keep in sync
+        IntendedAssignments.RemoveAll(r => r.SessionId == session.SessionId || string.Equals(r.DisplayName, session.DisplayName, StringComparison.OrdinalIgnoreCase));
     }
 
     [RelayCommand]
@@ -177,7 +185,7 @@ public partial class ChannelViewModel : ViewModelBase
     /// </summary>
     public ChannelConfiguration ToConfiguration()
     {
-        return new ChannelConfiguration
+        var config = new ChannelConfiguration
         {
             Index = Index,
             Name = Name,
@@ -187,8 +195,23 @@ public partial class ChannelViewModel : ViewModelBase
             Color = Color,
             Filter = Filter,
             SessionType = SessionType,
-            AssignedSessionIds = AssignedSessions.Select(s => s.SessionId).ToList()
         };
+
+        // Persist intended assignments for stability
+        config.AssignedSessions = IntendedAssignments.Select(r => new SessionReference
+        {
+            SessionId = r.SessionId,
+            ProcessId = r.ProcessId,
+            ProcessName = r.ProcessName,
+            DisplayName = r.DisplayName,
+            SessionType = r.SessionType,
+            DeviceEndpointId = r.DeviceEndpointId
+        }).ToList();
+
+        // Legacy ids (best-effort)
+        config.AssignedSessionIds = IntendedAssignments.Select(r => r.SessionId).Where(id => !string.IsNullOrEmpty(id))!.Select(id => id!).ToList();
+
+        return config;
     }
 
     /// <summary>
@@ -204,24 +227,124 @@ public partial class ChannelViewModel : ViewModelBase
         Color = config.Color;
         Filter = config.Filter;
         SessionType = config.SessionType;
-        // Note: AssignedSessionIds are loaded separately via RelinkSessions method
+
+        IntendedAssignments.Clear();
+        foreach (var r in config.AssignedSessions)
+        {
+            IntendedAssignments.Add(new SessionReference
+            {
+                SessionId = r.SessionId,
+                ProcessId = r.ProcessId,
+                ProcessName = r.ProcessName,
+                DisplayName = r.DisplayName,
+                SessionType = r.SessionType,
+                DeviceEndpointId = r.DeviceEndpointId
+            });
+        }
+
+        // Fallback legacy ids
+        if (IntendedAssignments.Count == 0)
+        {
+            foreach (var id in config.AssignedSessionIds)
+            {
+                IntendedAssignments.Add(new SessionReference { SessionId = id, SessionType = config.SessionType });
+            }
+        }
+        // AssignedSessions are linked separately
     }
 
     /// <summary>
-    /// Relinks saved session IDs to actual AudioSessionInfo objects
+    /// Set intended assignments from selected sessions, keeping stable references
     /// </summary>
-    public void RelinkSessions(List<string> sessionIds, IEnumerable<AudioSessionInfo> availableSessions)
+    public void SetIntendedAssignments(IEnumerable<AudioSessionInfo> sessions)
+    {
+        IntendedAssignments.Clear();
+        foreach (var s in sessions)
+        {
+            var reference = new SessionReference
+            {
+                SessionId = s.SessionId,
+                ProcessId = s.ProcessId,
+                ProcessName = s.ProcessName,
+                DisplayName = s.DisplayName,
+                SessionType = s.SessionType
+            };
+            if (s.SessionId.StartsWith("input_") || s.SessionId.StartsWith("output_"))
+            {
+                var id = s.SessionId.Contains('_') ? s.SessionId[(s.SessionId.IndexOf('_') + 1)..] : s.SessionId;
+                reference.DeviceEndpointId = id;
+            }
+            IntendedAssignments.Add(reference);
+        }
+    }
+
+    /// <summary>
+    /// Relinks runtime AssignedSessions from current IntendedAssignments against available sessions.
+    /// Does not mutate IntendedAssignments when no match is found.
+    /// </summary>
+    public void RelinkFromIntended(IEnumerable<AudioSessionInfo> availableSessions)
     {
         AssignedSessions.Clear();
 
-        foreach (var sessionId in sessionIds)
+        foreach (var r in IntendedAssignments)
         {
-            var session = availableSessions.FirstOrDefault(s => s.SessionId == sessionId);
-            if (session != null)
+            AudioSessionInfo? match = null;
+
+            // 1. Exact id
+            if (!string.IsNullOrEmpty(r.SessionId))
             {
-                AssignedSessions.Add(session);
+                match = availableSessions.FirstOrDefault(s => s.SessionId == r.SessionId);
+            }
+            // 2. Endpoint id
+            if (match == null && !string.IsNullOrEmpty(r.DeviceEndpointId))
+            {
+                var expectedInput = $"input_{r.DeviceEndpointId}";
+                var expectedOutput = $"output_{r.DeviceEndpointId}";
+                match = availableSessions.FirstOrDefault(s => s.SessionId == expectedInput || s.SessionId == expectedOutput);
+            }
+            // 3. ProcessId + type
+            if (match == null && r.ProcessId.HasValue)
+            {
+                match = availableSessions.FirstOrDefault(s => s.ProcessId == r.ProcessId && (!r.SessionType.HasValue || s.SessionType == r.SessionType.Value));
+            }
+            // 4. ProcessName + type
+            if (match == null && !string.IsNullOrWhiteSpace(r.ProcessName))
+            {
+                match = availableSessions.FirstOrDefault(s => string.Equals(s.ProcessName, r.ProcessName, StringComparison.OrdinalIgnoreCase) && (!r.SessionType.HasValue || s.SessionType == r.SessionType.Value));
+            }
+            // 5. DisplayName + type
+            if (match == null && !string.IsNullOrWhiteSpace(r.DisplayName))
+            {
+                match = availableSessions.FirstOrDefault(s => string.Equals(s.DisplayName, r.DisplayName, StringComparison.OrdinalIgnoreCase) && (!r.SessionType.HasValue || s.SessionType == r.SessionType.Value));
+            }
+
+            if (match != null)
+            {
+                AssignedSessions.Add(match);
             }
         }
+    }
+
+    /// <summary>
+    /// Legacy method: Relinks saved session IDs to actual AudioSessionInfo objects
+    /// </summary>
+    public void RelinkSessions(List<string> sessionIds, IEnumerable<AudioSessionInfo> availableSessions)
+    {
+        IntendedAssignments.Clear();
+        foreach (var id in sessionIds)
+        {
+            IntendedAssignments.Add(new SessionReference { SessionId = id });
+        }
+        RelinkFromIntended(availableSessions);
+    }
+
+    /// <summary>
+    /// Relinks using richer references from a configuration.
+    /// </summary>
+    public void RelinkSessions(ChannelConfiguration config, IEnumerable<AudioSessionInfo> availableSessions)
+    {
+        LoadConfiguration(config);
+        RelinkFromIntended(availableSessions);
     }
 }
 

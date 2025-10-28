@@ -17,6 +17,7 @@ public class MidiMapping
 
     /// <summary>
     /// Target channel index in the application
+    /// Use -1 for global (non-channel) actions like transport controls
     /// </summary>
     public int TargetChannelIndex { get; set; }
 
@@ -54,5 +55,10 @@ public enum MidiControlType
     FilterCutoff,
     FilterResonance,
     FilterType,
-    Pan
+    Pan,
+    // Global transport controls (limited set)
+    TransportPlay,
+    TransportPause,
+    TransportNext,
+    TransportPrevious
 }

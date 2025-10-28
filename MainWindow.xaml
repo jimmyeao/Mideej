@@ -28,6 +28,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <!-- Title Bar -->
@@ -133,13 +134,11 @@
                                 Style="{StaticResource ModernButton}"
                                 Margin="0,0,8,0"/>
                         <ComboBox ItemsSource="{Binding AvailableThemes}"
-          SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
-          Style="{StaticResource ModernComboBox}"
-          ToolTip="Select Theme"
-          Width="180"
-          Margin="8,0,0,0">
-
-                            <!-- Display both icon and readable name -->
+                                  SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
+                                  Style="{StaticResource ModernComboBox}"
+                                  ToolTip="Select Theme"
+                                  Width="180"
+                                  Margin="8,0,0,0">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate DataType="{x:Type models:ThemeOption}">
                                     <StackPanel Orientation="Horizontal">
@@ -148,12 +147,7 @@
                                     </StackPanel>
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
-
-                            <!-- Also apply the same template to the selected item -->
-                           
                         </ComboBox>
-
-
                     </StackPanel>
                 </Grid>
             </Border>
@@ -177,8 +171,45 @@
                 </ItemsControl>
             </ScrollViewer>
 
-            <!-- Bottom Status Bar -->
+            <!-- Media Transport Controls -->
             <Border Grid.Row="3"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    Padding="20,8,20,8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Action Buttons (Play, Pause, Prev, Next) -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
+                        <Button Content="⏮" Style="{StaticResource IconButton}" Command="{Binding TransportPreviousCommand}" ToolTip="Previous Track" Margin="4"/>
+                        <Button Content="▶" Style="{StaticResource IconButton}" Command="{Binding TransportPlayCommand}" ToolTip="Play" Margin="4"/>
+                        <Button Content="⏸" Style="{StaticResource IconButton}" Command="{Binding TransportPauseCommand}" ToolTip="Pause" Margin="4"/>
+                        <Button Content="⏭" Style="{StaticResource IconButton}" Command="{Binding TransportNextCommand}" ToolTip="Next Track" Margin="4"/>
+                    </StackPanel>
+
+                    <!-- Single Map button with context menu -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button x:Name="MapTransportButton" Content="Map Transport" Style="{StaticResource ModernButton}" Margin="4" Click="MapTransportButton_Click">
+                            <Button.ContextMenu>
+                                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                    <MenuItem Header="Map Play" Command="{Binding StartTransportMappingCommand}" CommandParameter="TransportPlay"/>
+                                    <MenuItem Header="Map Pause" Command="{Binding StartTransportMappingCommand}" CommandParameter="TransportPause"/>
+                                    <MenuItem Header="Map Previous Track" Command="{Binding StartTransportMappingCommand}" CommandParameter="TransportPrevious"/>
+                                    <MenuItem Header="Map Next Track" Command="{Binding StartTransportMappingCommand}" CommandParameter="TransportNext"/>
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Bottom Status Bar -->
+            <Border Grid.Row="4"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,1,0,0"
@@ -192,50 +223,25 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- Connection Status -->
-                    <StackPanel Grid.Column="0"
-                                Orientation="Horizontal">
-                        <Ellipse Width="8"
-                                 Height="8"
-                                 Margin="0,0,8,0"
-                                 VerticalAlignment="Center">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <Ellipse Width="8" Height="8" Margin="0,0,8,0" VerticalAlignment="Center">
                             <Ellipse.Fill>
                                 <SolidColorBrush Color="{Binding IsMidiConnected, Converter={StaticResource ConnectionStatusConverter}, FallbackValue=#EF4444}"/>
                             </Ellipse.Fill>
                         </Ellipse>
-                        <TextBlock Text="{Binding IsMidiConnected, Converter={StaticResource ConnectionStatusTextConverter}, FallbackValue='Disconnected'}"
-                                   Style="{StaticResource SubtitleTextBlock}"
-                                   FontSize="12"/>
+                        <TextBlock Text="{Binding IsMidiConnected, Converter={StaticResource ConnectionStatusTextConverter}, FallbackValue='Disconnected'}" Style="{StaticResource SubtitleTextBlock}" FontSize="12"/>
                     </StackPanel>
 
                     <!-- Mapping Mode Indicator -->
-                    <Border Grid.Column="1"
-                            Background="{DynamicResource AccentBrush}"
-                            CornerRadius="4"
-                            Padding="12,4"
-                            HorizontalAlignment="Center"
-                            Visibility="{Binding IsMappingModeActive, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Border Grid.Column="1" Background="{DynamicResource AccentBrush}" CornerRadius="4" Padding="12,4" HorizontalAlignment="Center" Visibility="{Binding IsMappingModeActive, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="⚙ MAPPING MODE ACTIVE"
-                                       Foreground="White"
-                                       FontWeight="Bold"
-                                       FontSize="12"
-                                       Margin="0,0,12,0"/>
-                            <Button Content="Cancel"
-                                    Command="{Binding CancelMappingModeCommand}"
-                                    Background="#EF4444"
-                                    Foreground="White"
-                                    BorderThickness="0"
-                                    Padding="8,2"
-                                    FontSize="11"
-                                    Cursor="Hand"/>
+                            <TextBlock Text="⚙ MAPPING MODE ACTIVE" Foreground="White" FontWeight="Bold" FontSize="12" Margin="0,0,12,0"/>
+                            <Button Content="Cancel" Command="{Binding CancelMappingModeCommand}" Background="#EF4444" Foreground="White" BorderThickness="0" Padding="8,2" FontSize="11" Cursor="Hand"/>
                         </StackPanel>
                     </Border>
 
                     <!-- App Info -->
-                    <TextBlock Grid.Column="2"
-                               Text="v1.0.0"
-                               Style="{StaticResource SubtitleTextBlock}"
-                               FontSize="10"/>
+                    <TextBlock Grid.Column="2" Text="v1.0.0" Style="{StaticResource SubtitleTextBlock}" FontSize="10"/>
                 </Grid>
             </Border>
         </Grid>

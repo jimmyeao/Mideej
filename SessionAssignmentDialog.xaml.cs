@@ -24,6 +24,8 @@ public partial class SessionAssignmentDialog : Window, INotifyPropertyChanged
     public ObservableCollection<AudioSessionInfo> ApplicationSessions { get; } = new();
     public HashSet<string> AlreadyMappedSessionIds { get; }
 
+    private readonly HashSet<string> _preselectedSessionIds;
+
     public bool HasInputDevices => InputDeviceSessions.Count > 0;
 
     public bool IsFocusedAppSelected
@@ -67,14 +69,17 @@ public partial class SessionAssignmentDialog : Window, INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public SessionAssignmentDialog(ObservableCollection<AudioSessionInfo> availableSessions, HashSet<string> alreadyMappedSessionIds)
+    public SessionAssignmentDialog(ObservableCollection<AudioSessionInfo> availableSessions, HashSet<string> alreadyMappedSessionIds, IEnumerable<string> preselectedSessionIds)
     {
         InitializeComponent();
         AvailableSessions = availableSessions;
         AlreadyMappedSessionIds = alreadyMappedSessionIds;
+        _preselectedSessionIds = new HashSet<string>(preselectedSessionIds);
         DataContext = this;
 
         GroupSessions();
+        ResetSelections();
+        ApplyPreselection();
     }
 
     private void GroupSessions()
@@ -102,6 +107,35 @@ public partial class SessionAssignmentDialog : Window, INotifyPropertyChanged
         }
 
         OnPropertyChanged(nameof(HasInputDevices));
+    }
+
+    private void ResetSelections()
+    {
+        foreach (var s in AvailableSessions)
+        {
+            s.IsSelected = false;
+        }
+    }
+
+    private void ApplyPreselection()
+    {
+        foreach (var s in AvailableSessions)
+        {
+            // Preselect only sessions that belong to the channel being edited
+            if (_preselectedSessionIds.Contains(s.SessionId))
+            {
+                s.IsSelected = true;
+            }
+        }
+
+        // Ensure sessions already mapped to other channels are not preselected inadvertently
+        foreach (var s in AvailableSessions)
+        {
+            if (AlreadyMappedSessionIds.Contains(s.SessionId) && !_preselectedSessionIds.Contains(s.SessionId))
+            {
+                s.IsSelected = false;
+            }
+        }
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)

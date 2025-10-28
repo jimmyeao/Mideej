@@ -25,6 +25,7 @@ public partial class App : Application
         services.AddSingleton<IMidiService, MidiService>();
         services.AddSingleton<IAudioSessionManager, AudioSessionManager>();
         services.AddSingleton<IConfigurationService, ConfigurationService>();
+        services.AddSingleton<IMediaControlService, MediaControlService>();
 
         // Register ViewModels
         services.AddTransient<MainWindowViewModel>();

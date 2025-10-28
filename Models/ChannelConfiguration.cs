@@ -16,9 +16,14 @@ public class ChannelConfiguration
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// IDs of audio sessions assigned to this channel
+    /// IDs of audio sessions assigned to this channel (legacy persistence)
     /// </summary>
     public List<string> AssignedSessionIds { get; set; } = new();
+
+    /// <summary>
+    /// Stable references to relink sessions after restart or device change
+    /// </summary>
+    public List<SessionReference> AssignedSessions { get; set; } = new();
 
     /// <summary>
     /// Whether the channel is muted
