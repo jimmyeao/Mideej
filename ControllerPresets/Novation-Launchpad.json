@@ -1,0 +1,133 @@
+{
+  "ControllerName": "Novation Launchpad",
+  "Description": "Preset configuration for Novation Launchpad MIDI controller (grid pad mode)",
+  "MidiMappings": [
+    {
+      "Channel": 0,
+      "ControlNumber": 0,
+      "TargetChannelIndex": 0,
+      "ControlType": "Mute",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 1,
+      "TargetChannelIndex": 1,
+      "ControlType": "Mute",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 2,
+      "TargetChannelIndex": 2,
+      "ControlType": "Mute",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 3,
+      "TargetChannelIndex": 3,
+      "ControlType": "Mute",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 4,
+      "TargetChannelIndex": 4,
+      "ControlType": "Mute",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 5,
+      "TargetChannelIndex": 5,
+      "ControlType": "Mute",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 6,
+      "TargetChannelIndex": 6,
+      "ControlType": "Mute",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 7,
+      "TargetChannelIndex": 7,
+      "ControlType": "Mute",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 16,
+      "TargetChannelIndex": 0,
+      "ControlType": "Solo",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 17,
+      "TargetChannelIndex": 1,
+      "ControlType": "Solo",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 18,
+      "TargetChannelIndex": 2,
+      "ControlType": "Solo",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 19,
+      "TargetChannelIndex": 3,
+      "ControlType": "Solo",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 104,
+      "TargetChannelIndex": -1,
+      "ControlType": "TransportPlay",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 105,
+      "TargetChannelIndex": -1,
+      "ControlType": "TransportPause",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    }
+  ],
+  "Channels": []
+}

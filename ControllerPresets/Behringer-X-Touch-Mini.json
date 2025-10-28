@@ -1,0 +1,151 @@
+{
+  "ControllerName": "Behringer X-Touch Mini",
+  "Description": "Preset configuration for Behringer X-Touch Mini MIDI controller",
+  "MidiMappings": [
+    {
+      "Channel": 0,
+      "ControlNumber": 1,
+      "TargetChannelIndex": 0,
+      "ControlType": "Volume",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 2,
+      "TargetChannelIndex": 1,
+      "ControlType": "Volume",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 3,
+      "TargetChannelIndex": 2,
+      "ControlType": "Volume",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 4,
+      "TargetChannelIndex": 3,
+      "ControlType": "Volume",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 5,
+      "TargetChannelIndex": 4,
+      "ControlType": "Volume",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 6,
+      "TargetChannelIndex": 5,
+      "ControlType": "Volume",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 7,
+      "TargetChannelIndex": 6,
+      "ControlType": "Volume",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 8,
+      "TargetChannelIndex": 7,
+      "ControlType": "Volume",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 8,
+      "TargetChannelIndex": 0,
+      "ControlType": "Mute",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 9,
+      "TargetChannelIndex": 1,
+      "ControlType": "Mute",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 10,
+      "TargetChannelIndex": 2,
+      "ControlType": "Mute",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 11,
+      "TargetChannelIndex": 3,
+      "ControlType": "Mute",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 91,
+      "TargetChannelIndex": -1,
+      "ControlType": "TransportPlay",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 92,
+      "TargetChannelIndex": -1,
+      "ControlType": "TransportPause",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 93,
+      "TargetChannelIndex": -1,
+      "ControlType": "TransportPrevious",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 94,
+      "TargetChannelIndex": -1,
+      "ControlType": "TransportNext",
+      "MinValue": 0.0,
+      "MaxValue": 1.0,
+      "IsInverted": false
+    }
+  ],
+  "Channels": []
+}

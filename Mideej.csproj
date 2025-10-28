@@ -14,7 +14,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="appicon.ico" />
+    <Content Include="appicon.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

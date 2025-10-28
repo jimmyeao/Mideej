@@ -54,6 +54,43 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private double _windowHeight = 700;
 
+    [ObservableProperty]
+    private double _windowLeft = double.NaN;
+
+    [ObservableProperty]
+    private double _windowTop = double.NaN;
+
+    [ObservableProperty]
+    private System.Windows.WindowState _windowState = System.Windows.WindowState.Normal;
+
+    [ObservableProperty]
+    private bool _minimizeToTray;
+
+    [ObservableProperty]
+    private bool _startWithWindows;
+
+    [ObservableProperty]
+    private bool _startMinimized;
+
+    [ObservableProperty]
+    private double _fontSizeScale = 1.0;
+
+    partial void OnFontSizeScaleChanged(double value)
+    {
+        // Notify the main window to apply font size
+        FontSizeChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public event EventHandler? FontSizeChanged;
+
+    [ObservableProperty]
+    private double _minWindowWidth = 600;
+
+    partial void OnStartWithWindowsChanged(bool value)
+    {
+        UpdateStartupRegistry(value);
+    }
+
     public ObservableCollection<ThemeOption> AvailableThemes { get; } = new()
 {
     new ThemeOption { Name = "DarkTheme", DisplayName = "Dark 🌙" },
@@ -358,7 +395,18 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void ManageMappings()
+    private void OpenSettings()
+    {
+        var settingsViewModel = new SettingsViewModel(this, _configurationService);
+        var settingsWindow = new SettingsWindow(settingsViewModel)
+        {
+            Owner = Application.Current.MainWindow
+        };
+        settingsWindow.ShowDialog();
+    }
+
+    [RelayCommand]
+    public void ManageMappings()
     {
         var channelNames = Channels.Select(c => c.Name).ToList();
         var mappingsList = _midiMappings.Values.ToList();
@@ -524,7 +572,20 @@ public partial class MainWindowViewModel : ViewModelBase
         const int maxChannels = 16;
 
         int channelCount = Math.Max(minChannels, Math.Min(Channels.Count, maxChannels));
-        WindowWidth = (channelCount * channelWidth) + windowChrome;
+        double calculatedWidth = (channelCount * channelWidth) + windowChrome;
+        
+        // Update minimum width to fit all channels (use actual channel count, not clamped)
+        MinWindowWidth = Math.Max(600, (Channels.Count * channelWidth) + windowChrome);
+        
+        // Only update window width if it would be larger than current or if current is smaller than min
+        if (WindowWidth < MinWindowWidth)
+        {
+            WindowWidth = MinWindowWidth;
+        }
+        else if (calculatedWidth > WindowWidth)
+        {
+            WindowWidth = calculatedWidth;
+        }
     }
 
     private void SubscribeToChannelEvents(ChannelViewModel channel)
@@ -568,6 +629,15 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (sender is ChannelViewModel soloedChannel && soloedChannel.IsSoloed)
         {
+            // Prevent soloing the master volume channel
+            if (soloedChannel.AssignedSessions.Any(s => s.SessionId == "master_output"))
+            {
+                soloedChannel.IsSoloed = false;
+                StatusMessage = "Cannot solo the master volume channel";
+                Console.WriteLine("Prevented solo on master volume channel");
+                return;
+            }
+
             // Exclusive solo - unsolo all other channels
             foreach (var channel in Channels)
             {
@@ -1285,6 +1355,17 @@ public partial class MainWindowViewModel : ViewModelBase
             // Update window size based on loaded channels
             UpdateWindowSize();
 
+            // Restore window position and size
+            WindowWidth = settings.WindowWidth;
+            WindowHeight = settings.WindowHeight;
+            WindowLeft = settings.WindowLeft;
+            WindowTop = settings.WindowTop;
+            WindowState = (System.Windows.WindowState)settings.WindowState;
+            MinimizeToTray = settings.MinimizeToTray;
+            StartWithWindows = settings.StartWithWindows;
+            StartMinimized = settings.StartMinimized;
+            FontSizeScale = settings.FontSizeScale;
+
             // Load MIDI mappings
             _midiMappings.Clear();
             foreach (var mapping in settings.MidiMappings)
@@ -1334,6 +1415,17 @@ public partial class MainWindowViewModel : ViewModelBase
         settings.SelectedMidiDevice = SelectedMidiDevice?.Name;
         settings.Channels = Channels.Select(c => c.ToConfiguration()).ToList();
         settings.MidiMappings = _midiMappings.Values.ToList();
+        
+        // Save window position and size
+        settings.WindowWidth = WindowWidth;
+        settings.WindowHeight = WindowHeight;
+        settings.WindowLeft = WindowLeft;
+        settings.WindowTop = WindowTop;
+        settings.WindowState = (int)WindowState;
+        settings.MinimizeToTray = MinimizeToTray;
+        settings.StartWithWindows = StartWithWindows;
+        settings.StartMinimized = StartMinimized;
+        settings.FontSizeScale = FontSizeScale;
 
         Console.WriteLine($"[Config Sync] Synced {settings.Channels.Count} channels, {settings.MidiMappings.Count} mappings to CurrentSettings");
     }
@@ -1619,5 +1711,47 @@ public partial class MainWindowViewModel : ViewModelBase
                 Console.WriteLine($"Error playing startup animation: {ex.Message}");
             }
         });
+    }
+
+    /// <summary>
+    /// Updates the Windows startup registry entry
+    /// </summary>
+    private void UpdateStartupRegistry(bool enable)
+    {
+        try
+        {
+            const string appName = "Mideej";
+            var startupKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
+
+            if (startupKey == null)
+            {
+                Console.WriteLine("Could not access startup registry key");
+                return;
+            }
+
+            if (enable)
+            {
+                var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+                if (exePath != null)
+                {
+                    var startupValue = StartMinimized ? $"\"{exePath}\" --minimized" : $"\"{exePath}\"";
+                    startupKey.SetValue(appName, startupValue);
+                    Console.WriteLine($"Added to Windows startup: {startupValue}");
+                }
+            }
+            else
+            {
+                startupKey.DeleteValue(appName, false);
+                Console.WriteLine("Removed from Windows startup");
+            }
+
+            startupKey.Close();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating startup registry: {ex.Message}");
+            StatusMessage = $"Error updating startup: {ex.Message}";
+        }
     }
 }

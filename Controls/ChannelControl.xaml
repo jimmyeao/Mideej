@@ -6,8 +6,17 @@
              xmlns:local="clr-namespace:Mideej.Controls"
              mc:Ignorable="d"
              d:DesignHeight="450"
-             Width="146">
+             Width="146"
+             x:Name="ChannelControlRoot">
     <Grid>
+        <Grid.ContextMenu>
+            <ContextMenu>
+                <MenuItem Header="Remove Channel"
+                          Command="{Binding DataContext.RemoveChannelCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                          CommandParameter="{Binding}"/>
+            </ContextMenu>
+        </Grid.ContextMenu>
+        
         <!-- Main Channel Card -->
         <Border Style="{StaticResource Card}" Margin="4,4,0,4">
             <Grid>

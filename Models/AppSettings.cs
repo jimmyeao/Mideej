@@ -46,9 +46,44 @@ public class AppSettings
     public bool StartMinimized { get; set; }
 
     /// <summary>
+    /// Whether to minimize to tray instead of taskbar
+    /// </summary>
+    public bool MinimizeToTray { get; set; }
+
+    /// <summary>
     /// VU meter refresh rate in milliseconds
     /// </summary>
     public int VuMeterRefreshRate { get; set; } = 30;
+
+    /// <summary>
+    /// Window width
+    /// </summary>
+    public double WindowWidth { get; set; } = 1200;
+
+    /// <summary>
+    /// Window height
+    /// </summary>
+    public double WindowHeight { get; set; } = 700;
+
+    /// <summary>
+    /// Window left position
+    /// </summary>
+    public double WindowLeft { get; set; } = double.NaN;
+
+    /// <summary>
+    /// Window top position
+    /// </summary>
+    public double WindowTop { get; set; } = double.NaN;
+
+    /// <summary>
+    /// Window state (Normal, Maximized, Minimized)
+    /// </summary>
+    public int WindowState { get; set; } = 0; // 0 = Normal
+
+    /// <summary>
+    /// Font size scale (0.8 = Small, 1.0 = Normal, 1.2 = Large, 1.4 = Extra Large)
+    /// </summary>
+    public double FontSizeScale { get; set; } = 1.0;
 }
 
 /// <summary>
