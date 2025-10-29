@@ -23,13 +23,13 @@ A powerful MIDI to Windows audio mixer controller for .NET 9. Mideej lets you co
 ### Main Interface
 <img width="1212" height="720" alt="Main application window showing 8 channel faders" src="https://github.com/user-attachments/assets/933daa73-6c69-496e-9dcf-55f2a9b2fabb" />
 
-### MIDI Controller Connection
+### Audio Session Mapping
 <img width="900" height="700" alt="MIDI device selection and connection" src="https://github.com/user-attachments/assets/c567e3b7-5130-486e-83b2-3fb89e0bb57d" />
 
-### Application Mapping
+### Settings
 <img width="700" height="889" alt="Assigning audio applications to channels" src="https://github.com/user-attachments/assets/6f87bf85-d166-489a-b9be-a64ae18a5884" />
 
-### Controller Configuration
+### Edit Mappings
 <img width="700" height="500" alt="MIDI controller preset configuration" src="https://github.com/user-attachments/assets/353961e0-c229-4a7f-94d0-d533275b3ece" />
 
 ## Requirements
@@ -86,10 +86,11 @@ A powerful MIDI to Windows audio mixer controller for .NET 9. Mideej lets you co
 If you're using a supported controller (M-Vave SMC Mixer, Behringer X-Touch Mini, or Novation Launchpad), presets are automatically loaded.
 
 For custom controllers:
-1. Move a fader/knob on your controller
-2. Click the **"MAPPING..."** button that appears on the channel
-3. The MIDI CC number will be learned automatically
-4. Repeat for mute (M) and solo (S) buttons
+1. Click the **"MAPPING..."** button that appears on the channel
+2. Choose what you want to Map (Volume, Mute, Solo etc)
+3. Move the fader/knob or push the button you want to assign to that control
+4. The MIDI CC number will be learned automatically
+5. Also Map Transport controls (Play, Stop, Next, Previous) if desired
 
 ### 4. Control Your Audio
 
@@ -102,8 +103,8 @@ For custom controllers:
 
 Mideej includes presets for:
 - **M-Vave SMC Mixer**: 8-channel motorized fader controller
-- **Behringer X-Touch Mini**: Compact USB controller with encoders and buttons
-- **Novation Launchpad**: Grid-based MIDI controller
+- **Behringer X-Touch Mini**: Compact USB controller with encoders and buttons (untested)
+- **Novation Launchpad**: Grid-based MIDI controller (untested)
 
 Custom controller mappings are saved automatically and persist between sessions.
 
