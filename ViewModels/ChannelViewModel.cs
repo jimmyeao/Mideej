@@ -181,6 +181,19 @@ public partial class ChannelViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Event fired when user wants to cycle to the next session
+    /// </summary>
+    public event EventHandler? CycleSessionRequested;
+
+    /// <summary>
+    /// Trigger a cycle to the next available session
+    /// </summary>
+    public void CycleSession()
+    {
+        CycleSessionRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
     /// Creates a configuration object from this ViewModel
     /// </summary>
     public ChannelConfiguration ToConfiguration()

@@ -64,9 +64,9 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
                     <Border Background="{DynamicResource PrimaryBrush}"
-                            CornerRadius="8"
-                            Width="24"
-                            Height="16"
+                            CornerRadius="6"
+                            Width="20"
+                            Height="14"
                             BorderThickness="2"
                             BorderBrush="{DynamicResource BackgroundBrush}"/>
                 </ControlTemplate>
@@ -90,7 +90,6 @@
     <Style x:Key="ModernSlider" TargetType="Slider">
         <Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
-        <Setter Property="Height" Value="200"/>
         <Setter Property="Orientation" Value="Vertical"/>
         <Setter Property="Minimum" Value="0"/>
         <Setter Property="Maximum" Value="1"/>
@@ -101,11 +100,11 @@
                 <ControlTemplate TargetType="Slider">
                     <Grid>
                         <Border Background="{TemplateBinding Background}"
-                                CornerRadius="4"
-                                Width="6"
+                                CornerRadius="3"
+                                Width="8"
                                 HorizontalAlignment="Center"/>
 
-                        <Track x:Name="PART_Track">
+                        <Track x:Name="PART_Track" HorizontalAlignment="Center">
                             <Track.DecreaseRepeatButton>
                                 <RepeatButton Command="Slider.DecreaseLarge"
                                             Style="{StaticResource SliderButtonStyle}"/>

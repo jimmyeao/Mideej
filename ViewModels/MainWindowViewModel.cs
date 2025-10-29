@@ -600,6 +600,7 @@ public partial class MainWindowViewModel : ViewModelBase
         channel.MappingModeRequested += OnChannelMappingModeRequested;
         channel.SessionAssignmentRequested += OnChannelSessionAssignmentRequested;
         channel.SessionCleared += OnChannelSessionCleared;
+        channel.CycleSessionRequested += OnChannelCycleSessionRequested;
     }
 
     private void OnChannelMappingModeRequested(object? sender, MappingTypeRequestedEventArgs e)
@@ -788,6 +789,71 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private void OnChannelCycleSessionRequested(object? sender, EventArgs e)
+    {
+        if (sender is not ChannelViewModel channel) return;
+
+        // Get all available non-system sessions (exclude master, input/output devices)
+        var availableSessions = AvailableSessions
+            .Where(s => s.SessionType == AudioSessionType.Application)
+            .ToList();
+
+        if (availableSessions.Count == 0)
+        {
+            StatusMessage = "No application sessions available to cycle";
+            return;
+        }
+
+        // Find current session index
+        int currentIndex = -1;
+        if (channel.AssignedSessions.Count > 0)
+        {
+            var currentSession = channel.AssignedSessions[0];
+            currentIndex = availableSessions.FindIndex(s => s.SessionId == currentSession.SessionId);
+        }
+
+        // Cycle to next session
+        int nextIndex = (currentIndex + 1) % availableSessions.Count;
+        var nextSession = availableSessions[nextIndex];
+
+        // Remove this session from all OTHER channels (exclusive mapping)
+        foreach (var otherChannel in Channels)
+        {
+            if (otherChannel != channel)
+            {
+                var existingSession = otherChannel.AssignedSessions.FirstOrDefault(s => s.SessionId == nextSession.SessionId);
+                if (existingSession != null)
+                {
+                    otherChannel.AssignedSessions.Remove(existingSession);
+                    otherChannel.IntendedAssignments.RemoveAll(r => r.SessionId == nextSession.SessionId);
+
+                    if (otherChannel.AssignedSessions.Count == 0)
+                    {
+                        otherChannel.Name = $"Channel {otherChannel.Index + 1}";
+                        otherChannel.SessionType = null;
+                    }
+                }
+            }
+        }
+
+        // Assign to this channel
+        channel.AssignedSessions.Clear();
+        channel.IntendedAssignments.Clear();
+        channel.AssignedSessions.Add(nextSession);
+        channel.SetIntendedAssignments(new List<AudioSessionInfo> { nextSession });
+        channel.Name = nextSession.DisplayName;
+        channel.SessionType = nextSession.SessionType;
+
+        StatusMessage = $"Channel {channel.Index + 1} cycled to: {nextSession.DisplayName}";
+        Console.WriteLine($"Channel {channel.Index + 1} cycled to: {nextSession.DisplayName}");
+
+        // Apply solo logic
+        ApplySoloLogic();
+
+        // Save configuration
+        _ = SaveConfigurationAsync();
+    }
+
     [RelayCommand]
     private void RemoveChannel(ChannelViewModel channel)
     {
@@ -810,11 +876,17 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (ChannelAwaitingMapping != null)
             {
-                // Only map CC to Volume if that's what the user selected
+                // Map CC to Volume or CycleSession
                 if (ControlTypeToMap == "Volume")
                 {
                     Console.WriteLine($"  Mapping CC to Volume");
                     CreateMapping(e.Channel, e.Controller, ChannelAwaitingMapping);
+                    CancelMappingMode();
+                }
+                else if (ControlTypeToMap == "CycleSession")
+                {
+                    Console.WriteLine($"  Mapping CC to CycleSession");
+                    CreateCcButtonMapping(e.Channel, e.Controller, ChannelAwaitingMapping, MidiControlType.CycleSession);
                     CancelMappingMode();
                 }
                 else
@@ -858,6 +930,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     "Solo" => MidiControlType.Solo,
                     "Record" => MidiControlType.Record,
                     "Select" => MidiControlType.Select,
+                    "CycleSession" => MidiControlType.CycleSession,
                     _ => MidiControlType.Mute
                 };
 
@@ -996,6 +1069,29 @@ public partial class MainWindowViewModel : ViewModelBase
         StatusMessage = $"Mapped MIDI CH{midiChannel + 1} Note{noteNumber} to {channel.Name} {controlType}";
     }
 
+    private void CreateCcButtonMapping(int midiChannel, int controller, ChannelViewModel channel, MidiControlType controlType)
+    {
+        var mapping = new MidiMapping
+        {
+            Channel = midiChannel,
+            ControlNumber = controller,
+            TargetChannelIndex = channel.Index,
+            ControlType = controlType
+        };
+
+        var key = (midiChannel, controller);
+        _midiMappings[key] = mapping;
+
+        if (_configurationService != null)
+        {
+            SyncConfigurationState();
+            _ = _configurationService.SaveCurrentSettingsAsync();
+        }
+
+        StatusMessage = $"Mapped MIDI CH{midiChannel + 1} CC{controller} to {channel.Name} {controlType}";
+        Console.WriteLine($"Created CC button mapping: MIDI CH{midiChannel} CC{controller} -> {channel.Name} {controlType}");
+    }
+
     private void CreateFaderMapping(int midiChannel, ChannelViewModel channel)
     {
         // For faders, we use -1 as a special indicator that this is a pitch bend mapping
@@ -1102,6 +1198,15 @@ public partial class MainWindowViewModel : ViewModelBase
                 StatusMessage = $"{channel.Name} - Selected: {(channel.IsSelected ? "ON" : "OFF")}";
                 Console.WriteLine($"Select toggled for {channel.Name}: {channel.IsSelected}");
                 break;
+
+            case MidiControlType.CycleSession:
+                // Trigger cycle session for this channel
+                channel.CycleSession();
+                // Brief LED flash for feedback
+                _midiService?.SendNoteOn(midiChannel, noteNumber, 127);
+                Task.Delay(100).ContinueWith(_ => _midiService?.SendNoteOn(midiChannel, noteNumber, 0));
+                Console.WriteLine($"Cycle session triggered for {channel.Name}");
+                break;
         }
     }
 
@@ -1147,6 +1252,18 @@ public partial class MainWindowViewModel : ViewModelBase
                 ApplyVolumeToSessions(channel);
                 // Send feedback to MIDI controller (motorized fader)
                 SendVolumeFeedback(midiChannel, controller, value);
+                break;
+
+            case MidiControlType.CycleSession:
+                // Only trigger on value change (binary knobs send same value twice)
+                if (value > 0)
+                {
+                    channel.CycleSession();
+                    // Brief CC feedback flash
+                    _midiService?.SendControlChange(midiChannel, controller, 127);
+                    Task.Delay(100).ContinueWith(_ => _midiService?.SendControlChange(midiChannel, controller, 0));
+                    Console.WriteLine($"Cycle session triggered for {channel.Name}");
+                }
                 break;
 
             case MidiControlType.Pan:

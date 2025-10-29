@@ -52,6 +52,7 @@ public enum MidiControlType
     Solo,
     Record,
     Select,
+    CycleSession,
     FilterCutoff,
     FilterResonance,
     FilterType,
