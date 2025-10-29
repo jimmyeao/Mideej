@@ -11,7 +11,16 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/jimmyeao/Mideej</RepositoryUrl>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <LangVersion>13.0</LangVersion>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="BenchmarkSuite1\**\*.cs" />
+    <None Remove="BenchmarkSuite1\**\*" />
+    <EmbeddedResource Remove="BenchmarkSuite1\**\*" />
+    <Page Remove="BenchmarkSuite1\**\*" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Remove="ControllerPresets\Behringer-X-Touch-Mini.json" />

@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows.Threading;
 using Mideej.Helpers;
 using Mideej.Models;
@@ -8,24 +10,34 @@ using NAudio.CoreAudioApi.Interfaces;
 
 namespace Mideej.Services;
 
-/// <summary>
-/// Service for managing Windows audio sessions
-/// </summary>
 public class AudioSessionManager : IAudioSessionManager, IDisposable
 {
     private MMDeviceEnumerator? _deviceEnumerator;
     private MMDevice? _defaultDevice;
     private MMDevice? _defaultInputDevice;
-    private SessionCollection? _sessionCollection;
+    private SessionCollection? _sessionCollection; // kept for compatibility, not used in multi-device loop
+    private NAudio.CoreAudioApi.AudioSessionManager? _sessionManager; // default device session manager
+    private IMMNotificationClient? _deviceNotificationClient;
+
     private readonly ConcurrentDictionary<string, SessionWrapper> _sessions = new();
-    private readonly Dictionary<string, MMDevice> _inputDevices = new();
-    private readonly Dictionary<string, MMDevice> _outputDevices = new();
-    private DispatcherTimer? _vuMeterTimer;
+    private readonly ConcurrentDictionary<(int ProcessId, string DeviceId), string> _processIndex = new(); // (processId, deviceId) -> sessionKey
+    private readonly ConcurrentDictionary<string, MMDevice> _inputDevices = new();
+    private readonly ConcurrentDictionary<string, MMDevice> _outputDevices = new();
+
+    // VU metering moved to dedicated STA thread
+    private Thread? _meterThread;
+    private Dispatcher? _meterDispatcher;
+    private DispatcherTimer? _bgVuTimer;
+
+    private System.Timers.Timer? _sessionRefreshTimer;
+    private volatile bool _scanInProgress;
     private bool _isMonitoring;
-    private int _vuMeterInterval = 30;
-    private DateTime _lastSessionRefresh = DateTime.MinValue;
-    private const int SessionRefreshIntervalMs = 2000; // Refresh every 2 seconds
-    private const int SessionGraceRemovalMs = 15000; // Keep missing sessions for 15s to avoid UI churn
+    private int _vuMeterInterval = 20; // default faster for responsiveness
+    private DateTime _lastDeviceRefresh = DateTime.MinValue;
+    private const int SessionRefreshIntervalMs = 1500; // separate background refresh
+    private const int SessionGraceRemovalMs = 15000; // Keep missing sessions for 15s
+    private const int DeviceRefreshIntervalMs = 3000; // refresh device list every 3s at most
+    private readonly ConcurrentDictionary<string, float> _peakLevelsBuffer = new();
 
     public event EventHandler<AudioSessionChangedEventArgs>? SessionsChanged;
     public event EventHandler<SessionVolumeChangedEventArgs>? SessionVolumeChanged;
@@ -62,78 +74,77 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 });
             }
 
-            // Refresh and add input devices (microphones)
-            if (_deviceEnumerator != null)
+            // Use cached input devices (avoid re-enumeration here)
+            foreach (var kvp in _inputDevices)
             {
+                var device = kvp.Value;
                 try
                 {
-                    // Clear old cache and rebuild
-                    _inputDevices.Clear();
-                    var inputDevices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
-                    foreach (var device in inputDevices)
+                    sessions.Add(new AudioSessionInfo
                     {
-                        var sessionId = $"input_{device.ID}";
-                        sessions.Add(new AudioSessionInfo
-                        {
-                            SessionId = sessionId,
-                            DisplayName = device.FriendlyName,
-                            ProcessName = "Microphone",
-                            SessionType = AudioSessionType.Input,
-                            Volume = device.AudioEndpointVolume.MasterVolumeLevelScalar,
-                            IsMuted = device.AudioEndpointVolume.Mute,
-                            PeakLevel = device.AudioMeterInformation.MasterPeakValue
-                        });
-
-                        // Cache the device for later use
-                        _inputDevices[sessionId] = device;
-                    }
+                        SessionId = kvp.Key,
+                        DisplayName = device.FriendlyName,
+                        ProcessName = "Microphone",
+                        SessionType = AudioSessionType.Input,
+                        Volume = device.AudioEndpointVolume.MasterVolumeLevelScalar,
+                        IsMuted = device.AudioEndpointVolume.Mute,
+                        PeakLevel = device.AudioMeterInformation.MasterPeakValue
+                    });
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error enumerating input devices: {ex.Message}");
-                }
+                catch { }
             }
 
-            // Refresh and add output devices (speakers/headphones)
-            if (_deviceEnumerator != null)
+            // Use cached output devices
+            foreach (var kvp in _outputDevices)
             {
+                var device = kvp.Value;
                 try
                 {
-                    // Clear old cache and rebuild
-                    _outputDevices.Clear();
-                    var outputDevices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
-                    foreach (var device in outputDevices)
+                    sessions.Add(new AudioSessionInfo
                     {
-                        var sessionId = $"output_{device.ID}";
-                        sessions.Add(new AudioSessionInfo
-                        {
-                            SessionId = sessionId,
-                            DisplayName = device.FriendlyName,
-                            ProcessName = "Audio Output",
-                            SessionType = AudioSessionType.Output,
-                            Volume = device.AudioEndpointVolume.MasterVolumeLevelScalar,
-                            IsMuted = device.AudioEndpointVolume.Mute,
-                            PeakLevel = device.AudioMeterInformation.MasterPeakValue
-                        });
+                        SessionId = kvp.Key,
+                        DisplayName = device.FriendlyName,
+                        ProcessName = "Audio Output",
+                        SessionType = AudioSessionType.Output,
+                        Volume = device.AudioEndpointVolume.MasterVolumeLevelScalar,
+                        IsMuted = device.AudioEndpointVolume.Mute,
+                        PeakLevel = device.AudioMeterInformation.MasterPeakValue
+                    });
+                }
+                catch { }
+            }
 
-                        // Cache the device for later use
-                        _outputDevices[sessionId] = device;
+            // De-duplicate application sessions by ProcessId; prefer default device and better names
+            var bestByPid = new Dictionary<int, AudioSessionInfo>();
+            foreach (var kvp in _sessions)
+            {
+                var info = kvp.Value.Info;
+                if (info == null || info.SessionType != AudioSessionType.Application)
+                    continue;
+
+                info.DisplayName = NormalizeDisplayName(info);
+
+                if (!bestByPid.TryGetValue(info.ProcessId, out var existing))
+                {
+                    bestByPid[info.ProcessId] = info;
+                }
+                else
+                {
+                    var existingOnDefault = IsOnDefaultDevice(existing.SessionId);
+                    var candidateOnDefault = IsOnDefaultDevice(info.SessionId);
+                    if (!existingOnDefault && candidateOnDefault)
+                    {
+                        bestByPid[info.ProcessId] = info;
+                    }
+                    else if (existingOnDefault == candidateOnDefault)
+                    {
+                        if (ScoreName(info) > ScoreName(existing))
+                            bestByPid[info.ProcessId] = info;
                     }
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error enumerating output devices: {ex.Message}");
-                }
             }
 
-            // Add application sessions (kept across inactive periods)
-            foreach (var wrapper in _sessions.Values)
-            {
-                if (wrapper.Info != null)
-                {
-                    sessions.Add(wrapper.Info);
-                }
-            }
+            sessions.AddRange(bestByPid.Values);
         }
         catch (Exception ex)
         {
@@ -141,6 +152,209 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         }
 
         return sessions;
+    }
+
+    private bool IsOnDefaultDevice(string sessionId)
+    {
+        var sep = sessionId.IndexOf('|');
+        if (sep <= 0 || _defaultDevice == null) return false;
+        var deviceId = sessionId.Substring(0, sep);
+        return string.Equals(deviceId, _defaultDevice.ID, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int ScoreName(AudioSessionInfo info)
+    {
+        if (string.IsNullOrWhiteSpace(info.DisplayName)) return 0;
+        int score = info.DisplayName.Length;
+        if (!string.IsNullOrWhiteSpace(info.ProcessName) && !string.Equals(info.DisplayName, info.ProcessName, StringComparison.OrdinalIgnoreCase))
+        {
+            score += 10;
+        }
+        return score;
+    }
+
+    private static string NormalizeDisplayName(AudioSessionInfo info)
+    {
+        var name = info.DisplayName;
+        if (!string.IsNullOrWhiteSpace(name) && !name.StartsWith("@") && !name.Contains("%SystemRoot%", StringComparison.OrdinalIgnoreCase))
+            return name!;
+
+        try
+        {
+            if (info.ProcessId > 0)
+            {
+                var proc = Process.GetProcessById(info.ProcessId);
+                var product = proc.MainModule?.FileVersionInfo?.ProductName;
+                if (!string.IsNullOrWhiteSpace(proc.MainWindowTitle))
+                    return proc.MainWindowTitle;
+                if (!string.IsNullOrWhiteSpace(product))
+                    return product!;
+                if (!string.IsNullOrWhiteSpace(proc.ProcessName))
+                    return proc.ProcessName;
+            }
+        }
+        catch { }
+
+        return info.ProcessName ?? name ?? "";
+    }
+
+    public void StartMonitoring()
+    {
+        if (_isMonitoring)
+            return;
+
+        try
+        {
+            _deviceEnumerator = new MMDeviceEnumerator();
+            _defaultDevice = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+
+            _sessionManager = _defaultDevice.AudioSessionManager;
+
+            // Subscribe to endpoint notifications (device add/remove/default change)
+            _deviceNotificationClient = new DeviceNotificationClient(this);
+            _deviceEnumerator.RegisterEndpointNotificationCallback(_deviceNotificationClient);
+
+            // Subscribe to master volume change notifications
+            if (_defaultDevice != null)
+            {
+                _defaultDevice.AudioEndpointVolume.OnVolumeNotification += OnMasterVolumeChanged;
+            }
+
+            UpdateDeviceCaches(force: true);
+            RefreshSessions();
+
+            // Start background session refresh timer to avoid UI lag; run on UI dispatcher
+            _sessionRefreshTimer = new System.Timers.Timer(SessionRefreshIntervalMs) { AutoReset = true, Enabled = true };
+            _sessionRefreshTimer.Elapsed += (_, __) =>
+            {
+                DispatcherHelper.RunOnUIThread(() =>
+                {
+                    if (_scanInProgress) return;
+                    _scanInProgress = true;
+                    try { RefreshSessions(); } finally { _scanInProgress = false; }
+                });
+            };
+
+            // Start meter thread
+            StartMeterThread();
+
+            _isMonitoring = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error starting audio session monitoring: {ex.Message}");
+        }
+    }
+
+    private void StartMeterThread()
+    {
+        // Stop if running
+        StopMeterThread();
+
+        _meterThread = new Thread(() =>
+        {
+            try
+            {
+                SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
+                _meterDispatcher = Dispatcher.CurrentDispatcher;
+                _bgVuTimer = new DispatcherTimer(DispatcherPriority.Background, _meterDispatcher)
+                {
+                    Interval = TimeSpan.FromMilliseconds(_vuMeterInterval)
+                };
+                _bgVuTimer.Tick += MeterTimer_Tick;
+                _bgVuTimer.Start();
+                Dispatcher.Run();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Meter thread error: {ex.Message}");
+            }
+        })
+        {
+            IsBackground = true
+        };
+        _meterThread.SetApartmentState(ApartmentState.STA);
+        _meterThread.Start();
+    }
+
+    private void StopMeterThread()
+    {
+        try
+        {
+            if (_meterDispatcher != null)
+            {
+                _meterDispatcher.Invoke(() =>
+                {
+                    try { _bgVuTimer?.Stop(); } catch { }
+                    _bgVuTimer = null;
+                });
+                _meterDispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
+            }
+        }
+        catch { }
+        finally
+        {
+            _meterDispatcher = null;
+            _meterThread = null;
+        }
+    }
+
+    public void StopMonitoring()
+    {
+        if (!_isMonitoring)
+            return;
+
+        try
+        {
+            StopMeterThread();
+
+            if (_sessionRefreshTimer != null)
+            {
+                try { _sessionRefreshTimer.Stop(); } catch { }
+                try { _sessionRefreshTimer.Dispose(); } catch { }
+                _sessionRefreshTimer = null;
+            }
+
+            // Unregister endpoint notifications
+            try
+            {
+                if (_deviceEnumerator != null && _deviceNotificationClient != null)
+                {
+                    _deviceEnumerator.UnregisterEndpointNotificationCallback(_deviceNotificationClient);
+                }
+            }
+            catch { }
+            _deviceNotificationClient = null;
+
+            // Unsubscribe from master volume notifications
+            if (_defaultDevice != null)
+            {
+                _defaultDevice.AudioEndpointVolume.OnVolumeNotification -= OnMasterVolumeChanged;
+            }
+
+            CleanupSessions();
+
+            _sessionCollection = null;
+            _sessionManager = null;
+
+            _defaultDevice?.Dispose();
+            _defaultDevice = null;
+
+            // Dispose cached devices
+            foreach (var d in _inputDevices.Values) { try { d.Dispose(); } catch { } }
+            _inputDevices.Clear();
+            foreach (var d in _outputDevices.Values) { try { d.Dispose(); } catch { } }
+            _outputDevices.Clear();
+
+            _deviceEnumerator?.Dispose();
+            _deviceEnumerator = null;
+
+            _isMonitoring = false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error stopping audio session monitoring: {ex.Message}");
+        }
     }
 
     public void SetSessionVolume(string sessionId, float volume)
@@ -177,7 +391,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 {
                     wrapper.VolumeControl.Volume = volume;
                     wrapper.Info.Volume = volume;
-                    wrapper.LastSeen = DateTime.Now;
+                    wrapper.LastSeen = DateTime.UtcNow;
                 }
             }
         }
@@ -219,7 +433,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 {
                     wrapper.VolumeControl.Mute = isMuted;
                     wrapper.Info.IsMuted = isMuted;
-                    wrapper.LastSeen = DateTime.Now;
+                    wrapper.LastSeen = DateTime.UtcNow;
                 }
             }
         }
@@ -268,81 +482,18 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         return 0f;
     }
 
-    public void StartMonitoring()
-    {
-        if (_isMonitoring)
-            return;
-
-        try
-        {
-            _deviceEnumerator = new MMDeviceEnumerator();
-            _defaultDevice = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-
-            // Subscribe to master volume change notifications
-            if (_defaultDevice != null)
-            {
-                _defaultDevice.AudioEndpointVolume.OnVolumeNotification += OnMasterVolumeChanged;
-            }
-
-            RefreshSessions();
-
-            // Start VU meter timer
-            _vuMeterTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(_vuMeterInterval)
-            };
-            _vuMeterTimer.Tick += VuMeterTimer_Tick;
-            _vuMeterTimer.Start();
-
-            _isMonitoring = true;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error starting audio session monitoring: {ex.Message}");
-        }
-    }
-
-    public void StopMonitoring()
-    {
-        if (!_isMonitoring)
-            return;
-
-        try
-        {
-            _vuMeterTimer?.Stop();
-            _vuMeterTimer = null;
-
-            CleanupSessions();
-
-            _sessionCollection = null;
-
-            // Unsubscribe from master volume notifications
-            if (_defaultDevice != null)
-            {
-                _defaultDevice.AudioEndpointVolume.OnVolumeNotification -= OnMasterVolumeChanged;
-            }
-
-            _defaultDevice?.Dispose();
-            _defaultDevice = null;
-
-            _deviceEnumerator?.Dispose();
-            _deviceEnumerator = null;
-
-            _isMonitoring = false;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error stopping audio session monitoring: {ex.Message}");
-        }
-    }
-
     public void SetVuMeterUpdateInterval(int intervalMs)
     {
-        _vuMeterInterval = Math.Max(10, Math.Min(intervalMs, 100));
-
-        if (_vuMeterTimer != null)
+        _vuMeterInterval = Math.Clamp(intervalMs, 10, 100);
+        if (_meterDispatcher != null)
         {
-            _vuMeterTimer.Interval = TimeSpan.FromMilliseconds(_vuMeterInterval);
+            _meterDispatcher.Invoke(() =>
+            {
+                if (_bgVuTimer != null)
+                {
+                    _bgVuTimer.Interval = TimeSpan.FromMilliseconds(_vuMeterInterval);
+                }
+            });
         }
     }
 
@@ -350,112 +501,100 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     {
         try
         {
-            if (_defaultDevice == null)
+            if (_deviceEnumerator == null)
                 return;
 
-            // Get audio session manager
-            var sessionManager = _defaultDevice.AudioSessionManager;
-            _sessionCollection = sessionManager.Sessions;
-
-            Console.WriteLine($"[RefreshSessions] Scanning for audio sessions... Found {_sessionCollection.Count} session(s) in collection");
+            // refresh device caches at most every few seconds
+            var nowUtc = DateTime.UtcNow;
+            if ((nowUtc - _lastDeviceRefresh).TotalMilliseconds >= DeviceRefreshIntervalMs)
+            {
+                UpdateDeviceCaches();
+            }
 
             var currentSessionIds = new HashSet<string>();
             var newSessions = new List<string>();
             var removedSessions = new List<string>();
 
-            for (int i = 0; i < _sessionCollection.Count; i++)
+            // Enumerate sessions on all active render devices
+            foreach (var devKvp in _outputDevices)
             {
-                try
+                var device = devKvp.Value;
+                var deviceId = device.ID;
+
+                SessionCollection sessionsOnDevice;
+                try { sessionsOnDevice = device.AudioSessionManager.Sessions; }
+                catch { continue; }
+
+                for (int i = 0; i < sessionsOnDevice.Count; i++)
                 {
-                    var session = _sessionCollection[i];
-                    var processId = (int)session.GetProcessID;
-                    var sessionState = session.State;
-
-                    Console.WriteLine($"[RefreshSessions] Session {i}: PID={processId}, State={sessionState}");
-
-                    if (sessionState == AudioSessionState.AudioSessionStateExpired)
+                    try
                     {
-                        Console.WriteLine($"[RefreshSessions]   -> Skipped (expired)");
-                        continue;
-                    }
+                        var session = sessionsOnDevice[i];
+                        int processId;
+                        try { processId = (int)session.GetProcessID; } catch { processId = -1; }
+                        if (processId <= 0) continue;
 
-                    var sessionId = $"{processId}_{session.GetSessionIdentifier}";
-                    currentSessionIds.Add(sessionId);
+                        var state = session.State;
+                        if (state == AudioSessionState.AudioSessionStateExpired) continue;
 
-                    if (_sessions.ContainsKey(sessionId))
-                    {
-                        // Update existing session wrapper by id
-                        var wrapper = _sessions[sessionId];
-                        wrapper.Session = session;
-                        wrapper.VolumeControl = session.SimpleAudioVolume;
-                        wrapper.MeterInfo = session.AudioMeterInformation;
-                        if (wrapper.VolumeControl != null)
+                        string identifier = SafeGetIdentifier(session, i);
+                        var sessionKey = string.Concat(deviceId, "|", processId.ToString(), "_", identifier);
+                        currentSessionIds.Add(sessionKey);
+
+                        if (_sessions.ContainsKey(sessionKey))
                         {
-                            wrapper.Info.Volume = wrapper.VolumeControl.Volume;
-                            wrapper.Info.IsMuted = wrapper.VolumeControl.Mute;
-                        }
-                        wrapper.LastSeen = DateTime.Now;
-                        Console.WriteLine($"[RefreshSessions]   -> Existing session: {wrapper.Info.DisplayName}");
-                    }
-                    else
-                    {
-                        // Try to migrate an existing wrapper for the same process (session id changed)
-                        var migrate = _sessions.FirstOrDefault(kvp => kvp.Value.Info.ProcessId == processId);
-                        if (!string.IsNullOrEmpty(migrate.Key))
-                        {
-                            var wrapper = migrate.Value;
-                            // Update wrapper to point to new session, keep Info instance
+                            var wrapper = _sessions[sessionKey];
                             wrapper.Session = session;
                             wrapper.VolumeControl = session.SimpleAudioVolume;
                             wrapper.MeterInfo = session.AudioMeterInformation;
-                            wrapper.LastSeen = DateTime.Now;
-                            wrapper.Info.ProcessId = processId;
-                            try
+                            if (wrapper.VolumeControl != null)
                             {
-                                // Update display name if empty
-                                if (string.IsNullOrWhiteSpace(wrapper.Info.DisplayName))
-                                {
-                                    var p = Process.GetProcessById(processId);
-                                    wrapper.Info.DisplayName = session.DisplayName;
-                                    if (string.IsNullOrWhiteSpace(wrapper.Info.DisplayName))
-                                        wrapper.Info.DisplayName = p.ProcessName;
-                                }
+                                wrapper.Info.Volume = wrapper.VolumeControl.Volume;
+                                wrapper.Info.IsMuted = wrapper.VolumeControl.Mute;
                             }
-                            catch { }
-
-                            // Move dictionary key
-                            _sessions.TryRemove(migrate.Key, out _);
-                            _sessions[sessionId] = wrapper;
+                            wrapper.LastSeen = nowUtc;
+                            _processIndex[(wrapper.Info.ProcessId, deviceId)] = sessionKey;
+                        }
+                        else if (_processIndex.TryGetValue((processId, deviceId), out var oldKey) && _sessions.TryGetValue(oldKey, out var existing))
+                        {
+                            var wrapper = existing;
+                            wrapper.Session = session;
+                            wrapper.VolumeControl = session.SimpleAudioVolume;
+                            wrapper.MeterInfo = session.AudioMeterInformation;
+                            wrapper.LastSeen = nowUtc;
+                            wrapper.Info.ProcessId = processId;
+                            _sessions.TryRemove(oldKey, out _);
+                            _sessions[sessionKey] = wrapper;
+                            _processIndex[(processId, deviceId)] = sessionKey;
                             newSessions.Add(wrapper.Info.DisplayName);
-                            Console.WriteLine($"[RefreshSessions]   -> MIGRATED: {wrapper.Info.DisplayName} oldKey={migrate.Key} newKey={sessionId}");
                         }
                         else
                         {
-                            // Create new wrapper
                             var info = CreateSessionInfo(session, processId);
+                            info.SessionId = sessionKey;
+
+                            info.DisplayName = NormalizeDisplayName(info);
+
                             var wrapper = new SessionWrapper
                             {
                                 Session = session,
                                 Info = info,
                                 VolumeControl = session.SimpleAudioVolume,
                                 MeterInfo = session.AudioMeterInformation,
-                                LastSeen = DateTime.Now
+                                LastSeen = nowUtc
                             };
-
-                            _sessions.TryAdd(sessionId, wrapper);
+                            try { session.RegisterEventClient(new SessionEventsHandler(this, sessionKey)); } catch { }
+                            _sessions.TryAdd(sessionKey, wrapper);
+                            _processIndex[(processId, deviceId)] = sessionKey;
                             newSessions.Add(info.DisplayName);
-                            Console.WriteLine($"[RefreshSessions]   -> NEW SESSION: {info.DisplayName} (PID: {processId})");
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[RefreshSessions] Error processing session {i}: {ex.Message}");
+                    catch { }
                 }
             }
 
-            // Remove sessions that have not been seen for a grace period
-            var now = DateTime.Now;
+            // Remove sessions missing beyond grace period
+            var now = nowUtc;
             foreach (var kvp in _sessions.ToArray())
             {
                 if (!currentSessionIds.Contains(kvp.Key))
@@ -465,19 +604,16 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                     {
                         if (_sessions.TryRemove(kvp.Key, out var wrapper))
                         {
-                            removedSessions.Add(wrapper.Info.DisplayName);
-                            Console.WriteLine($"[RefreshSessions]   -> REMOVED (grace expired): {wrapper.Info.DisplayName}");
+                            var sep = kvp.Key.IndexOf('|');
+                            var devId = sep > 0 ? kvp.Key.Substring(0, sep) : string.Empty;
+                            _processIndex.TryRemove((wrapper.Info.ProcessId, devId), out _);
                         }
                     }
                 }
             }
 
-            Console.WriteLine($"[RefreshSessions] Scan complete. Total tracked sessions: {_sessions.Count}, New: {newSessions.Count}, Removed: {removedSessions.Count}");
-
-            // Only notify if there were changes or periodically to update meters
-            if (newSessions.Count > 0 || removedSessions.Count > 0)
+            if (newSessions.Count > 0)
             {
-                Console.WriteLine($"[RefreshSessions] Notifying UI of session changes...");
                 NotifySessionsChanged();
             }
         }
@@ -487,48 +623,47 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         }
     }
 
+    private static string SafeGetIdentifier(AudioSessionControl session, int index)
+    {
+        try
+        {
+            var id = session.GetSessionIdentifier;
+            if (!string.IsNullOrEmpty(id)) return id;
+        }
+        catch { }
+        try
+        {
+            var inst = session.GetSessionInstanceIdentifier;
+            if (!string.IsNullOrEmpty(inst)) return inst;
+        }
+        catch { }
+        return $"idx{index}";
+    }
+
     private AudioSessionInfo CreateSessionInfo(AudioSessionControl session, int processId)
     {
         var info = new AudioSessionInfo
         {
-            SessionId = $"{processId}_{session.GetSessionIdentifier}",
+            SessionId = $"{processId}_{SafeGetIdentifier(session, 0)}",
             ProcessId = processId,
             SessionType = AudioSessionType.Application
         };
 
         try
         {
-            // Get process information
             var process = Process.GetProcessById(processId);
             info.ProcessName = process.ProcessName;
-            info.DisplayName = session.DisplayName;
-
-            // Use session display name if available, otherwise use process name
-            if (string.IsNullOrWhiteSpace(info.DisplayName))
-            {
-                info.DisplayName = info.ProcessName;
-            }
-
-            // Try to get icon path
-            try
-            {
-                info.IconPath = process.MainModule?.FileName;
-            }
-            catch
-            {
-                // Some processes don't allow access to MainModule
-            }
-
-            // Get volume info
+            try { info.DisplayName = session.DisplayName; } catch { info.DisplayName = process.MainWindowTitle; }
+            info.DisplayName = NormalizeDisplayName(info);
+            try { info.IconPath = process.MainModule?.FileName; } catch { }
             if (session.SimpleAudioVolume != null)
             {
                 info.Volume = session.SimpleAudioVolume.Volume;
                 info.IsMuted = session.SimpleAudioVolume.Mute;
             }
         }
-        catch (Exception ex)
+        catch
         {
-            Console.WriteLine($"Error creating session info for process {processId}: {ex.Message}");
             info.DisplayName = $"Process {processId}";
             info.ProcessName = $"Process {processId}";
         }
@@ -536,95 +671,52 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         return info;
     }
 
-    private void VuMeterTimer_Tick(object? sender, EventArgs e)
+    private void MeterTimer_Tick(object? sender, EventArgs e)
     {
         try
         {
-            // Periodically refresh session list (every 2 seconds)
-            var now = DateTime.Now;
-            var timeSinceLastRefresh = (now - _lastSessionRefresh).TotalMilliseconds;
+            // Collect peaks off the UI thread
+            _peakLevelsBuffer.Clear();
 
-            if (timeSinceLastRefresh >= SessionRefreshIntervalMs)
-            {
-                Console.WriteLine($"[VuMeterTimer] Triggering session refresh (time since last: {timeSinceLastRefresh:F0}ms)");
-                RefreshSessions();
-                _lastSessionRefresh = now;
-            }
-
-            // Update peak levels
-            var peakLevels = new Dictionary<string, float>();
-
-            // Add master output peak level
             if (_defaultDevice != null)
             {
-                try
-                {
-                    var peakLevel = _defaultDevice.AudioMeterInformation.MasterPeakValue;
-                    peakLevels["master_output"] = peakLevel;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error updating master output peak level: {ex.Message}");
-                }
+                try { _peakLevelsBuffer["master_output"] = _defaultDevice.AudioMeterInformation.MasterPeakValue; } catch { }
             }
 
-            // Add input device peak levels
             foreach (var kvp in _inputDevices)
             {
-                try
-                {
-                    var peakLevel = kvp.Value.AudioMeterInformation.MasterPeakValue;
-                    peakLevels[kvp.Key] = peakLevel;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error updating input device peak level for {kvp.Key}: {ex.Message}");
-                }
+                try { _peakLevelsBuffer[kvp.Key] = kvp.Value.AudioMeterInformation.MasterPeakValue; } catch { }
             }
-
-            // Add output device peak levels
             foreach (var kvp in _outputDevices)
             {
-                try
-                {
-                    var peakLevel = kvp.Value.AudioMeterInformation.MasterPeakValue;
-                    peakLevels[kvp.Key] = peakLevel;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error updating output device peak level for {kvp.Key}: {ex.Message}");
-                }
+                try { _peakLevelsBuffer[kvp.Key] = kvp.Value.AudioMeterInformation.MasterPeakValue; } catch { }
             }
-
-            // Add application session peak levels
             foreach (var kvp in _sessions)
             {
                 try
                 {
                     if (kvp.Value.MeterInfo != null)
                     {
-                        var peakLevel = kvp.Value.MeterInfo.MasterPeakValue;
-                        kvp.Value.Info.PeakLevel = peakLevel;
-                        peakLevels[kvp.Key] = peakLevel;
+                        var peak = kvp.Value.MeterInfo.MasterPeakValue;
+                        kvp.Value.Info.PeakLevel = peak; // keep cached
+                        _peakLevelsBuffer[kvp.Key] = peak;
                     }
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error updating peak level for session {kvp.Key}: {ex.Message}");
-                }
+                catch { }
             }
 
-            if (peakLevels.Count > 0)
+            if (_peakLevelsBuffer.Count > 0)
             {
+                var payload = new Dictionary<string, float>(_peakLevelsBuffer);
                 DispatcherHelper.RunOnUIThread(() =>
                 {
-                    PeakLevelsUpdated?.Invoke(this, new PeakLevelEventArgs { PeakLevels = peakLevels });
+                    PeakLevelsUpdated?.Invoke(this, new PeakLevelEventArgs { PeakLevels = payload });
                 });
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error in VU meter timer: {ex.Message}");
+            Console.WriteLine($"Error in meter timer: {ex.Message}");
         }
     }
 
@@ -632,8 +724,6 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     {
         try
         {
-            Console.WriteLine($"Master volume changed: Muted={data.Muted}, Volume={data.MasterVolume}");
-            
             DispatcherHelper.RunOnUIThread(() =>
             {
                 MasterMuteChanged?.Invoke(this, new MasterMuteChangedEventArgs
@@ -658,20 +748,190 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         });
     }
 
+    private void UpdateDeviceCaches(bool force = false)
+    {
+        if (_deviceEnumerator == null) return;
+        var nowUtc = DateTime.UtcNow;
+        if (!force && (nowUtc - _lastDeviceRefresh).TotalMilliseconds < DeviceRefreshIntervalMs)
+            return;
+
+        // Capture new input devices
+        try
+        {
+            var inputDevices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+            var seen = new HashSet<string>();
+            foreach (var device in inputDevices)
+            {
+                var id = "input_" + device.ID;
+                seen.Add(id);
+                _inputDevices.AddOrUpdate(id, device, (_, old) => { try { old.Dispose(); } catch { } return device; });
+            }
+            // Remove missing
+            foreach (var kvp in _inputDevices)
+            {
+                if (!seen.Contains(kvp.Key))
+                {
+                    if (_inputDevices.TryRemove(kvp.Key, out var d)) { try { d.Dispose(); } catch { } }
+                }
+            }
+        }
+        catch { }
+
+        // Capture new output devices
+        try
+        {
+            var outputDevices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+            var seen = new HashSet<string>();
+            foreach (var device in outputDevices)
+            {
+                var id = "output_" + device.ID;
+                seen.Add(id);
+                _outputDevices.AddOrUpdate(id, device, (_, old) => { try { old.Dispose(); } catch { } return device; });
+            }
+            foreach (var kvp in _outputDevices)
+            {
+                if (!seen.Contains(kvp.Key))
+                {
+                    if (_outputDevices.TryRemove(kvp.Key, out var d)) { try { d.Dispose(); } catch { } }
+                }
+            }
+        }
+        catch { }
+
+        _lastDeviceRefresh = nowUtc;
+    }
+
     private void CleanupSessions()
     {
         foreach (var wrapper in _sessions.Values)
         {
+            try { wrapper.Session?.Dispose(); } catch { }
+        }
+        _sessions.Clear();
+        _processIndex.Clear();
+    }
+
+    private sealed class DeviceNotificationClient : IMMNotificationClient
+    {
+        private readonly AudioSessionManager _owner;
+        public DeviceNotificationClient(AudioSessionManager owner) => _owner = owner;
+
+        public void OnDeviceStateChanged(string deviceId, DeviceState newState)
+        {
+            _owner.UpdateDeviceCaches(force: true);
+            _owner.NotifySessionsChanged();
+        }
+
+        public void OnDeviceAdded(string pwstrDeviceId)
+        {
+            _owner.UpdateDeviceCaches(force: true);
+            _owner.NotifySessionsChanged();
+        }
+
+        public void OnDeviceRemoved(string deviceId)
+        {
+            _owner.UpdateDeviceCaches(force: true);
+            _owner.NotifySessionsChanged();
+        }
+
+        public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
+        {
             try
             {
-                wrapper.Session?.Dispose();
+                if (flow == DataFlow.Render && role == Role.Multimedia && _owner._deviceEnumerator != null)
+                {
+                    if (_owner._defaultDevice != null)
+                    {
+                        _owner._defaultDevice.AudioEndpointVolume.OnVolumeNotification -= _owner.OnMasterVolumeChanged;
+                        _owner._defaultDevice.Dispose();
+                    }
+                    _owner._defaultDevice = _owner._deviceEnumerator.GetDevice(defaultDeviceId);
+                    _owner._sessionManager = _owner._defaultDevice.AudioSessionManager;
+                    _owner._defaultDevice.AudioEndpointVolume.OnVolumeNotification += _owner.OnMasterVolumeChanged;
+                    _owner.RefreshSessions();
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error disposing session: {ex.Message}");
+                Console.WriteLine($"Error handling default device change: {ex.Message}");
             }
         }
-        _sessions.Clear();
+
+        public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key)
+        {
+            // not used
+        }
+    }
+
+    private sealed class SessionEventsHandler : IAudioSessionEventsHandler
+    {
+        private readonly AudioSessionManager _owner;
+        private readonly string _sessionKey;
+        public SessionEventsHandler(AudioSessionManager owner, string sessionKey)
+        {
+            _owner = owner;
+            _sessionKey = sessionKey;
+        }
+
+        public void OnDisplayNameChanged(string displayName)
+        {
+            if (_owner._sessions.TryGetValue(_sessionKey, out var w))
+            {
+                w.Info.DisplayName = displayName;
+                _owner.NotifySessionsChanged();
+            }
+        }
+
+        public void OnIconPathChanged(string iconPath)
+        {
+            if (_owner._sessions.TryGetValue(_sessionKey, out var w))
+            {
+                w.Info.IconPath = iconPath;
+                _owner.NotifySessionsChanged();
+            }
+        }
+
+        public void OnVolumeChanged(float volume, bool isMuted)
+        {
+            if (_owner._sessions.TryGetValue(_sessionKey, out var w))
+            {
+                w.Info.Volume = volume;
+                w.Info.IsMuted = isMuted;
+                w.LastSeen = DateTime.UtcNow;
+                _owner.SessionVolumeChanged?.Invoke(_owner, new SessionVolumeChangedEventArgs { SessionId = _sessionKey, Volume = volume, IsMuted = isMuted });
+            }
+        }
+
+        public void OnChannelVolumeChanged(uint channelCount, IntPtr newVolumes, uint channelIndex)
+        {
+            // not used
+        }
+
+        public void OnGroupingParamChanged(ref Guid groupingId)
+        {
+            // not used
+        }
+
+        public void OnStateChanged(AudioSessionState state)
+        {
+            if (state == AudioSessionState.AudioSessionStateExpired)
+            {
+                if (_owner._sessions.TryGetValue(_sessionKey, out var w))
+                {
+                    w.LastSeen = DateTime.UtcNow.AddMilliseconds(-(SessionGraceRemovalMs + 100));
+                    _owner.RefreshSessions();
+                }
+            }
+        }
+
+        public void OnSessionDisconnected(AudioSessionDisconnectReason disconnectReason)
+        {
+            if (_owner._sessions.TryGetValue(_sessionKey, out var w))
+            {
+                w.LastSeen = DateTime.UtcNow.AddMilliseconds(-(SessionGraceRemovalMs + 100));
+                _owner.RefreshSessions();
+            }
+        }
     }
 
     public void Dispose()
