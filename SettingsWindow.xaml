@@ -7,7 +7,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         mc:Ignorable="d"
         Title="Settings - Mideej"
-        Height="845"
+        Height="889"
         Width="700"
         MinHeight="500"
         MinWidth="600"
@@ -103,6 +103,31 @@
                             Padding="20"
                             Margin="0,0,0,20">
                         <StackPanel>
+                            <!-- Theme Selection -->
+                            <Grid Margin="0,0,0,16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Text="Theme"
+                                           Style="{StaticResource LabelTextBlock}"
+                                           VerticalAlignment="Center"/>
+
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding AvailableThemes}"
+                                          SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
+                                          Style="{StaticResource ModernComboBox}"
+                                          HorizontalAlignment="Left"
+                                          Width="200">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding DisplayName}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+
                             <!-- Font Size -->
                             <Grid Margin="0,0,0,16">
                                 <Grid.ColumnDefinitions>
@@ -331,7 +356,7 @@
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,1,0,0"
                     CornerRadius="0,0,12,12"
-                    Padding="30,16" Grid.ColumnSpan="2" Margin="0,709,0,0">
+                    Padding="30,16" Grid.ColumnSpan="2" Margin="0,747,0,0">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>

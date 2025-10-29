@@ -31,9 +31,9 @@ public class AppSettings
     public Dictionary<string, Profile> Profiles { get; set; } = new();
 
     /// <summary>
-    /// Application theme (Light/Dark)
+    /// Application theme name (DarkTheme, LightTheme, etc.)
     /// </summary>
-    public AppTheme Theme { get; set; } = AppTheme.Dark;
+    public string SelectedTheme { get; set; } = "DarkTheme";
 
     /// <summary>
     /// Whether to start with Windows
@@ -105,14 +105,4 @@ public class Profile
     /// MIDI mappings
     /// </summary>
     public List<MidiMapping> MidiMappings { get; set; } = new();
-}
-
-/// <summary>
-/// Application theme options
-/// </summary>
-public enum AppTheme
-{
-    Light,
-    Dark,
-    System
 }

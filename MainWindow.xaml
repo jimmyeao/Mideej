@@ -182,7 +182,8 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <controls:ChannelControl DataContext="{Binding}"/>
+                            <controls:ChannelControl DataContext="{Binding}" 
+                                                     Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"/>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>

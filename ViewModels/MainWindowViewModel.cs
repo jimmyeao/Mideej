@@ -46,9 +46,6 @@ public partial class MainWindowViewModel : ViewModelBase
     private string _statusMessage = "Ready";
 
     [ObservableProperty]
-    private AppTheme _currentTheme = AppTheme.Dark;
-
-    [ObservableProperty]
     private double _windowWidth = 1200;
 
     [ObservableProperty]
@@ -196,8 +193,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 Channels.Add(channel);
             }
         }
-        SelectedTheme = AvailableThemes.FirstOrDefault(t => t.Name == "DarkTheme");
-        ApplyTheme(SelectedTheme);
+        // Theme will be loaded from config or default to DarkTheme
+        if (SelectedTheme == null)
+        {
+            SelectedTheme = AvailableThemes.FirstOrDefault(t => t.Name == "DarkTheme");
+            ApplyTheme(SelectedTheme);
+        }
         UpdateWindowSize();
     }
     partial void OnSelectedThemeChanged(ThemeOption? value)
@@ -376,13 +377,6 @@ public partial class MainWindowViewModel : ViewModelBase
         _midiService?.StopMappingMode();
         StatusMessage = "Mapping cancelled - Ready";
         Console.WriteLine("=== MAPPING MODE CANCELLED ===");
-    }
-
-    [RelayCommand]
-    private void ToggleTheme()
-    {
-        CurrentTheme = CurrentTheme == AppTheme.Dark ? AppTheme.Light : AppTheme.Dark;
-        // Theme change logic will be handled by the view
     }
 
     [RelayCommand]
@@ -601,6 +595,17 @@ public partial class MainWindowViewModel : ViewModelBase
         channel.SessionAssignmentRequested += OnChannelSessionAssignmentRequested;
         channel.SessionCleared += OnChannelSessionCleared;
         channel.CycleSessionRequested += OnChannelCycleSessionRequested;
+    }
+
+    private void UnsubscribeFromChannelEvents(ChannelViewModel channel)
+    {
+        channel.VolumeChanged -= OnChannelVolumeChanged;
+        channel.MuteChanged -= OnChannelMuteChanged;
+        channel.SoloChanged -= OnChannelSoloChanged;
+        channel.MappingModeRequested -= OnChannelMappingModeRequested;
+        channel.SessionAssignmentRequested -= OnChannelSessionAssignmentRequested;
+        channel.SessionCleared -= OnChannelSessionCleared;
+        channel.CycleSessionRequested -= OnChannelCycleSessionRequested;
     }
 
     private void OnChannelMappingModeRequested(object? sender, MappingTypeRequestedEventArgs e)
@@ -857,13 +862,24 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void RemoveChannel(ChannelViewModel channel)
     {
+        Console.WriteLine($"Removing channel: {channel.Name} (Index: {channel.Index})");
+        
+        // Unsubscribe from events
+        UnsubscribeFromChannelEvents(channel);
+        
         Channels.Remove(channel);
+        
         // Re-index remaining channels
         for (int i = 0; i < Channels.Count; i++)
         {
             Channels[i].Index = i;
         }
+        
         UpdateWindowSize();
+        StatusMessage = $"Channel removed. {Channels.Count} channels remaining.";
+        
+        // Save configuration
+        _ = SaveConfigurationAsync();
     }
 
     private void OnMidiControlChange(object? sender, MidiControlChangeEventArgs e)
@@ -1419,7 +1435,14 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var settings = await _configurationService.LoadSettingsAsync();
-            CurrentTheme = settings.Theme;
+            
+            // Load theme
+            var savedTheme = AvailableThemes.FirstOrDefault(t => t.Name == settings.SelectedTheme);
+            if (savedTheme != null)
+            {
+                SelectedTheme = savedTheme;
+                ApplyTheme(savedTheme);
+            }
 
             // Detect corrupted/empty config and attempt restore from backup
             if (settings.Channels.Count == 0 && settings.MidiMappings.Count == 0)
@@ -1573,7 +1596,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (_configurationService == null) return;
 
         var settings = _configurationService.CurrentSettings;
-        settings.Theme = CurrentTheme;
+        settings.SelectedTheme = SelectedTheme?.Name ?? "DarkTheme";
         settings.SelectedMidiDevice = SelectedMidiDevice?.Name;
         settings.Channels = Channels.Select(c => c.ToConfiguration()).ToList();
         settings.MidiMappings = _midiMappings.Values.ToList();

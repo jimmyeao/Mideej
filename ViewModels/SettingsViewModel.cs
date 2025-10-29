@@ -31,6 +31,9 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private int _selectedFontSizeIndex = 1; // Default to Normal (100%)
 
+    [ObservableProperty]
+    private ThemeOption? _selectedTheme;
+
     public ObservableCollection<FontSizeOption> FontSizeOptions { get; } = new()
     {
         new FontSizeOption { DisplayName = "Small (80%)", Scale = 0.8 },
@@ -43,6 +46,8 @@ public partial class SettingsViewModel : ViewModelBase
     private string _statusMessage = string.Empty;
 
     public ObservableCollection<ControllerPresetOption> ControllerPresets { get; } = new();
+
+    public ObservableCollection<ThemeOption> AvailableThemes => _mainViewModel.AvailableThemes;
 
     [ObservableProperty]
     private ControllerPresetOption? _selectedPreset;
@@ -57,6 +62,7 @@ public partial class SettingsViewModel : ViewModelBase
         StartWithWindows = mainViewModel.StartWithWindows;
         StartMinimized = mainViewModel.StartMinimized;
         FontSizeScale = mainViewModel.FontSizeScale;
+        SelectedTheme = mainViewModel.SelectedTheme;
 
         // Set the selected font size index
         var matchingOption = FontSizeOptions.FirstOrDefault(o => Math.Abs(o.Scale - FontSizeScale) < 0.01);
@@ -175,6 +181,15 @@ public partial class SettingsViewModel : ViewModelBase
         }
     }
 
+    partial void OnSelectedThemeChanged(ThemeOption? value)
+    {
+        if (value != null)
+        {
+            // Apply immediately to main view model for preview
+            _mainViewModel.SelectedTheme = value;
+        }
+    }
+
     [RelayCommand]
     private async Task ExportControllerConfig()
     {
@@ -273,6 +288,10 @@ public partial class SettingsViewModel : ViewModelBase
         _mainViewModel.StartWithWindows = StartWithWindows;
         _mainViewModel.StartMinimized = StartMinimized;
         _mainViewModel.FontSizeScale = FontSizeScale;
+        if (SelectedTheme != null)
+        {
+            _mainViewModel.SelectedTheme = SelectedTheme;
+        }
 
         // Save configuration
         await _mainViewModel.SaveConfigurationAsync();
