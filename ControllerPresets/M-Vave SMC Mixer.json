@@ -112,15 +112,6 @@
     },
     {
       "Channel": 0,
-      "ControlNumber": 17,
-      "TargetChannelIndex": 1,
-      "ControlType": 1,
-      "MinValue": 0,
-      "MaxValue": 1,
-      "IsInverted": false
-    },
-    {
-      "Channel": 0,
       "ControlNumber": 9,
       "TargetChannelIndex": 1,
       "ControlType": 2,
@@ -384,7 +375,7 @@
       "Channel": 0,
       "ControlNumber": 94,
       "TargetChannelIndex": -1,
-      "ControlType": 9,
+      "ControlType": 10,
       "MinValue": 0,
       "MaxValue": 1,
       "IsInverted": false
@@ -393,7 +384,7 @@
       "Channel": 0,
       "ControlNumber": 93,
       "TargetChannelIndex": -1,
-      "ControlType": 10,
+      "ControlType": 11,
       "MinValue": 0,
       "MaxValue": 1,
       "IsInverted": false
@@ -402,7 +393,7 @@
       "Channel": 0,
       "ControlNumber": 91,
       "TargetChannelIndex": -1,
-      "ControlType": 12,
+      "ControlType": 13,
       "MinValue": 0,
       "MaxValue": 1,
       "IsInverted": false
@@ -411,14 +402,183 @@
       "Channel": 0,
       "ControlNumber": 92,
       "TargetChannelIndex": -1,
-      "ControlType": 11,
+      "ControlType": 12,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "IsInverted": false
+    },
+    {
+      "Channel": 0,
+      "ControlNumber": 17,
+      "TargetChannelIndex": 1,
+      "ControlType": 1,
       "MinValue": 0,
       "MaxValue": 1,
       "IsInverted": false
     }
   ],
-  "Channels": [],
-  "CreatedAt": "2025-10-28T23:04:09.1637638Z",
-  "ModifiedAt": "2025-10-28T23:04:09.1639204Z",
+  "Channels": [
+    {
+      "Index": 0,
+      "Name": "Master Volume",
+      "AssignedSessionIds": [
+        "master_output"
+      ],
+      "AssignedSessions": [
+        {
+          "SessionId": "master_output",
+          "ProcessId": 0,
+          "ProcessName": "System",
+          "DisplayName": "Master Volume",
+          "SessionType": 3
+        }
+      ],
+      "IsMuted": false,
+      "IsSoloed": false,
+      "Volume": 0.18751144,
+      "Color": "#3B82F6",
+      "SessionType": 3
+    },
+    {
+      "Index": 1,
+      "Name": "Spotify",
+      "AssignedSessionIds": [
+        "14584_{0.0.0.00000000}.{4798d84b-8fa6-4fd8-8927-7c9fe1472d3b}|\\Device\\HarddiskVolume3\\Users\\jimmy\\AppData\\Roaming\\Spotify\\Spotify.exe%b{00000000-0000-0000-0000-000000000000}"
+      ],
+      "AssignedSessions": [
+        {
+          "SessionId": "14584_{0.0.0.00000000}.{4798d84b-8fa6-4fd8-8927-7c9fe1472d3b}|\\Device\\HarddiskVolume3\\Users\\jimmy\\AppData\\Roaming\\Spotify\\Spotify.exe%b{00000000-0000-0000-0000-000000000000}",
+          "ProcessId": 14584,
+          "ProcessName": "Spotify",
+          "DisplayName": "Spotify",
+          "SessionType": 0
+        }
+      ],
+      "IsMuted": false,
+      "IsSoloed": false,
+      "Volume": 0.1328206,
+      "Color": "#3B82F6",
+      "SessionType": 0
+    },
+    {
+      "Index": 2,
+      "Name": "chrome",
+      "AssignedSessionIds": [
+        "15856_{0.0.0.00000000}.{4798d84b-8fa6-4fd8-8927-7c9fe1472d3b}|\\Device\\HarddiskVolume3\\Program Files\\Google\\Chrome\\Application\\chrome.exe%b{00000000-0000-0000-0000-000000000000}"
+      ],
+      "AssignedSessions": [
+        {
+          "SessionId": "15856_{0.0.0.00000000}.{4798d84b-8fa6-4fd8-8927-7c9fe1472d3b}|\\Device\\HarddiskVolume3\\Program Files\\Google\\Chrome\\Application\\chrome.exe%b{00000000-0000-0000-0000-000000000000}",
+          "ProcessId": 15856,
+          "ProcessName": "chrome",
+          "DisplayName": "chrome",
+          "SessionType": 0
+        }
+      ],
+      "IsMuted": false,
+      "IsSoloed": false,
+      "Volume": 0,
+      "Color": "#3B82F6",
+      "SessionType": 0
+    },
+    {
+      "Index": 3,
+      "Name": "msedge",
+      "AssignedSessionIds": [
+        "58900_{0.0.0.00000000}.{4798d84b-8fa6-4fd8-8927-7c9fe1472d3b}|\\Device\\HarddiskVolume3\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe%b{00000000-0000-0000-0000-000000000000}"
+      ],
+      "AssignedSessions": [
+        {
+          "SessionId": "58900_{0.0.0.00000000}.{4798d84b-8fa6-4fd8-8927-7c9fe1472d3b}|\\Device\\HarddiskVolume3\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe%b{00000000-0000-0000-0000-000000000000}",
+          "ProcessId": 58900,
+          "ProcessName": "msedge",
+          "DisplayName": "msedge",
+          "SessionType": 0
+        }
+      ],
+      "IsMuted": false,
+      "IsSoloed": false,
+      "Volume": 0,
+      "Color": "#3B82F6",
+      "SessionType": 0
+    },
+    {
+      "Index": 4,
+      "Name": "Channel 5",
+      "AssignedSessionIds": [],
+      "AssignedSessions": [],
+      "IsMuted": false,
+      "IsSoloed": false,
+      "Volume": 0,
+      "Color": "#3B82F6"
+    },
+    {
+      "Index": 5,
+      "Name": "Microphone (Shure MV7\u002B)",
+      "AssignedSessionIds": [
+        "input_{0.0.1.00000000}.{c047ae66-cf2b-4d16-bd9b-4e0fff560dbc}"
+      ],
+      "AssignedSessions": [
+        {
+          "SessionId": "input_{0.0.1.00000000}.{c047ae66-cf2b-4d16-bd9b-4e0fff560dbc}",
+          "ProcessId": 0,
+          "ProcessName": "Microphone",
+          "DisplayName": "Microphone (Shure MV7\u002B)",
+          "SessionType": 4,
+          "DeviceEndpointId": "{0.0.1.00000000}.{c047ae66-cf2b-4d16-bd9b-4e0fff560dbc}"
+        }
+      ],
+      "IsMuted": false,
+      "IsSoloed": false,
+      "Volume": 0,
+      "Color": "#3B82F6",
+      "SessionType": 4
+    },
+    {
+      "Index": 6,
+      "Name": "Unmapped Applications",
+      "AssignedSessionIds": [
+        "unmapped_apps"
+      ],
+      "AssignedSessions": [
+        {
+          "SessionId": "unmapped_apps",
+          "ProcessId": 0,
+          "ProcessName": "Dynamic",
+          "DisplayName": "Unmapped Applications",
+          "SessionType": 0
+        }
+      ],
+      "IsMuted": false,
+      "IsSoloed": false,
+      "Volume": 0,
+      "Color": "#3B82F6",
+      "SessionType": 0
+    },
+    {
+      "Index": 7,
+      "Name": "Headphones (Shure MV7\u002B)",
+      "AssignedSessionIds": [
+        "output_{0.0.0.00000000}.{f1b5db05-375e-4a6b-a35c-f713209007d0}"
+      ],
+      "AssignedSessions": [
+        {
+          "SessionId": "output_{0.0.0.00000000}.{f1b5db05-375e-4a6b-a35c-f713209007d0}",
+          "ProcessId": 0,
+          "ProcessName": "Audio Output",
+          "DisplayName": "Headphones (Shure MV7\u002B)",
+          "SessionType": 3,
+          "DeviceEndpointId": "{0.0.0.00000000}.{f1b5db05-375e-4a6b-a35c-f713209007d0}"
+        }
+      ],
+      "IsMuted": false,
+      "IsSoloed": false,
+      "Volume": 0,
+      "Color": "#3B82F6",
+      "SessionType": 3
+    }
+  ],
+  "CreatedAt": "2025-10-29T09:06:00.4984635Z",
+  "ModifiedAt": "2025-10-29T09:06:00.4985471Z",
   "Version": 1
 }

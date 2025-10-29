@@ -16,7 +16,7 @@
                           CommandParameter="{Binding}"/>
             </ContextMenu>
         </Grid.ContextMenu>
-        
+
         <!-- Main Channel Card -->
         <Border Style="{StaticResource Card}" Margin="4,4,0,4">
             <Grid>
@@ -168,8 +168,8 @@
                 Style="{StaticResource IconButton}"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Top"
-                Margin="0,8,8,0"
-                Width="32"
+                Margin="0,65,0,0"
+                Width="36"
                 Height="32"
                 FontSize="14"
                 ToolTip="Map MIDI Controls..."
