@@ -192,10 +192,6 @@
                     <MenuItem Header="▶ Map Select" 
                               Command="{Binding EnterMappingModeCommand}"
                               CommandParameter="Select"/>
-                    <Separator/>
-                    <MenuItem Header="🔄 Map Cycle Session" 
-                              Command="{Binding EnterMappingModeCommand}"
-                              CommandParameter="CycleSession"/>
                 </ContextMenu>
             </Button.ContextMenu>
         </Button>

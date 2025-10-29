@@ -798,6 +798,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (sender is not ChannelViewModel channel) return;
 
+        // Existing feature retained, but no longer mappable via MIDI.
         // Get all available non-system sessions (exclude master, input/output devices)
         var availableSessions = AvailableSessions
             .Where(s => s.SessionType == AudioSessionType.Application)
@@ -892,17 +893,11 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (ChannelAwaitingMapping != null)
             {
-                // Map CC to Volume or CycleSession
+                // Map CC to Volume only
                 if (ControlTypeToMap == "Volume")
                 {
                     Console.WriteLine($"  Mapping CC to Volume");
                     CreateMapping(e.Channel, e.Controller, ChannelAwaitingMapping);
-                    CancelMappingMode();
-                }
-                else if (ControlTypeToMap == "CycleSession")
-                {
-                    Console.WriteLine($"  Mapping CC to CycleSession");
-                    CreateCcButtonMapping(e.Channel, e.Controller, ChannelAwaitingMapping, MidiControlType.CycleSession);
                     CancelMappingMode();
                 }
                 else
@@ -939,6 +934,14 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (ChannelAwaitingMapping != null)
             {
+                if (ControlTypeToMap == "CycleSession")
+                {
+                    StatusMessage = "Cycle Session mapping has been removed and is no longer supported.";
+                    Console.WriteLine("  Ignoring mapping request for CycleSession");
+                    CancelMappingMode();
+                    return;
+                }
+
                 // Use the control type selected by the user
                 MidiControlType buttonType = ControlTypeToMap switch
                 {
@@ -946,7 +949,6 @@ public partial class MainWindowViewModel : ViewModelBase
                     "Solo" => MidiControlType.Solo,
                     "Record" => MidiControlType.Record,
                     "Select" => MidiControlType.Select,
-                    "CycleSession" => MidiControlType.CycleSession,
                     _ => MidiControlType.Mute
                 };
 
@@ -1216,12 +1218,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 break;
 
             case MidiControlType.CycleSession:
-                // Trigger cycle session for this channel
-                channel.CycleSession();
-                // Brief LED flash for feedback
-                _midiService?.SendNoteOn(midiChannel, noteNumber, 127);
-                Task.Delay(100).ContinueWith(_ => _midiService?.SendNoteOn(midiChannel, noteNumber, 0));
-                Console.WriteLine($"Cycle session triggered for {channel.Name}");
+                // No longer supported via MIDI mapping
+                StatusMessage = "Cycle Session mapping is no longer supported; input ignored.";
+                Console.WriteLine($"Ignored CycleSession mapping for {channel.Name}");
                 break;
         }
     }
@@ -1271,16 +1270,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 break;
 
             case MidiControlType.CycleSession:
-                // Only trigger on value change (binary knobs send same value twice)
-                if (value > 0)
-                {
-                    channel.CycleSession();
-                    // Brief CC feedback flash
-                    _midiService?.SendControlChange(midiChannel, controller, 127);
-                    Task.Delay(100).ContinueWith(_ => _midiService?.SendControlChange(midiChannel, controller, 0));
-                    Console.WriteLine($"Cycle session triggered for {channel.Name}");
-                }
-                break;
+                // No longer supported via MIDI mapping
+                StatusMessage = "Cycle Session mapping is no longer supported; input ignored.";
+                Console.WriteLine($"Ignored CycleSession CC for {channel.Name}");
+                return;
 
             case MidiControlType.Pan:
                 // Pan control (future enhancement)
@@ -1510,6 +1503,21 @@ public partial class MainWindowViewModel : ViewModelBase
             StartMinimized = settings.StartMinimized;
             FontSizeScale = settings.FontSizeScale;
 
+            // Scrub unsupported CycleSession mappings
+            int removedCycle = settings.MidiMappings.RemoveAll(m => m.ControlType == MidiControlType.CycleSession);
+            if (removedCycle > 0)
+            {
+                Console.WriteLine($"Removed {removedCycle} unsupported CycleSession mappings from settings");
+                try
+                {
+                    await _configurationService.SaveSettingsAsync(settings);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Warning: Failed to persist removal of CycleSession mappings: {ex.Message}");
+                }
+            }
+
             // Load MIDI mappings
             _midiMappings.Clear();
             foreach (var mapping in settings.MidiMappings)
@@ -1555,11 +1563,20 @@ public partial class MainWindowViewModel : ViewModelBase
 
         var settings = _configurationService.CurrentSettings;
 
+        // Scrub unsupported CycleSession mappings on reload too
+        int removedCycle = settings.MidiMappings.RemoveAll(m => m.ControlType == MidiControlType.CycleSession);
+        if (removedCycle > 0)
+        {
+            Console.WriteLine($"Removed {removedCycle} unsupported CycleSession mappings during reload");
+            _ = _configurationService.SaveCurrentSettingsAsync();
+        }
+
         // Reload MIDI mappings
         _midiMappings.Clear();
         foreach (var mapping in settings.MidiMappings)
         {
-            var key = (mapping.Channel, mapping.ControlNumber);
+            // Explicitly name tuple elements to match Dictionary<(int channel, int controller), ...>
+            var key = (channel: mapping.Channel, controller: mapping.ControlNumber);
             _midiMappings[key] = mapping;
         }
 
@@ -1575,7 +1592,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 Channels.Add(channelVm);
             }
             UpdateWindowSize();
-            
+
             // Relink sessions if available
             if (AvailableSessions.Count > 0)
             {
@@ -1599,7 +1616,8 @@ public partial class MainWindowViewModel : ViewModelBase
         settings.SelectedTheme = SelectedTheme?.Name ?? "DarkTheme";
         settings.SelectedMidiDevice = SelectedMidiDevice?.Name;
         settings.Channels = Channels.Select(c => c.ToConfiguration()).ToList();
-        settings.MidiMappings = _midiMappings.Values.ToList();
+        // Ensure we never persist CycleSession mappings going forward
+        settings.MidiMappings = _midiMappings.Values.Where(m => m.ControlType != MidiControlType.CycleSession).ToList();
         
         // Save window position and size
         settings.WindowWidth = WindowWidth;
