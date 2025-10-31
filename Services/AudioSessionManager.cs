@@ -80,15 +80,10 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         PeakLevel = _defaultDevice.AudioMeterInformation.MasterPeakValue
                     };
                     sessions.Add(masterSession);
-                    Debug.WriteLine($"[GetActiveSessions] Added master_output - Muted={masterSession.IsMuted}");
                 }
                 catch (InvalidCastException) { /* COM object released */ }
                 catch (COMException) { /* Device disconnected */ }
                 catch { }
-            }
-            else
-            {
-                Debug.WriteLine($"[GetActiveSessions] _defaultDevice is NULL!");
             }
 
             // Use cached input devices (avoid re-enumeration here)
@@ -114,7 +109,6 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             }
 
             // Use cached output devices
-            Debug.WriteLine($"[GetActiveSessions] Output devices count: {_outputDevices.Count}");
             foreach (var kvp in _outputDevices.ToArray())
             {
                 var device = kvp.Value;
@@ -131,20 +125,10 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         PeakLevel = device.AudioMeterInformation.MasterPeakValue
                     };
                     sessions.Add(outputSession);
-                    Debug.WriteLine($"[GetActiveSessions] Added output device {kvp.Key} - {device.FriendlyName} - Muted={outputSession.IsMuted}");
                 }
-                catch (InvalidCastException ex) 
-                { 
-                    Debug.WriteLine($"[GetActiveSessions] InvalidCastException for output device {kvp.Key}: {ex.Message}");
-                }
-                catch (COMException ex) 
-                { 
-                    Debug.WriteLine($"[GetActiveSessions] COMException for output device {kvp.Key}: {ex.Message}");
-                }
-                catch (Exception ex) 
-                { 
-                    Debug.WriteLine($"[GetActiveSessions] Exception for output device {kvp.Key}: {ex.Message}");
-                }
+                catch (InvalidCastException) { /* COM object released */ }
+                catch (COMException) { /* Device disconnected */ }
+                catch { }
             }
 
             // De-duplicate application sessions by ProcessId; prefer default device and better names
@@ -449,13 +433,11 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
     public void SetSessionMute(string sessionId, bool isMuted)
     {
-        Debug.WriteLine($"[SetSessionMute] Called for {sessionId}, isMuted={isMuted}");
         try
         {
             // Handle master output
             if (sessionId == "master_output" && _defaultDevice != null)
             {
-                Debug.WriteLine($"[SetSessionMute] Setting master_output mute={isMuted}");
                 _defaultDevice.AudioEndpointVolume.Mute = isMuted;
                 return;
             }
@@ -463,23 +445,15 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             // Handle input devices
             if (sessionId.StartsWith("input_") && _inputDevices.TryGetValue(sessionId, out var inputDevice))
             {
-                Debug.WriteLine($"[SetSessionMute] Setting input device {sessionId} mute={isMuted}");
                 inputDevice.AudioEndpointVolume.Mute = isMuted;
-                Debug.WriteLine($"[SetSessionMute] Successfully set input device mute");
                 return;
             }
 
             // Handle output devices
             if (sessionId.StartsWith("output_") && _outputDevices.TryGetValue(sessionId, out var outputDevice))
             {
-                Debug.WriteLine($"[SetSessionMute] Found output device in dictionary");
                 outputDevice.AudioEndpointVolume.Mute = isMuted;
-                Debug.WriteLine($"[SetSessionMute] Successfully set output device mute");
                 return;
-            }
-            else if (sessionId.StartsWith("output_"))
-            {
-                Debug.WriteLine($"[SetSessionMute] Output device {sessionId} NOT FOUND in _outputDevices!");
             }
 
             // Handle application sessions
@@ -866,14 +840,12 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         _peakLevelsBuffer["master_output"] = meterInfo.MasterPeakValue;
                     }
                 } 
-                catch (InvalidCastException ex) 
+                catch (InvalidCastException) 
                 { 
-                    Debug.WriteLine($"[MeterTimer] InvalidCastException on master_output: {ex.Message}");
                     // Don't null out the device, just skip this tick
                 }
-                catch (COMException ex) 
+                catch (COMException) 
                 { 
-                    Debug.WriteLine($"[MeterTimer] COMException on master_output: {ex.Message}");
                     // Don't null out the device, just skip this tick
                 }
                 catch (Exception ex) 

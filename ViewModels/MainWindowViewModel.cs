@@ -284,7 +284,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 SelectedMidiDevice.Name.Contains("M-Vave", StringComparison.OrdinalIgnoreCase) ||
                 SelectedMidiDevice.Name.Contains("SINCO", StringComparison.OrdinalIgnoreCase))
             {
-                _ = PlayStartupAnimation();
+                _ = PlayStartupAnimationAndRestoreLeds();
             }
         }
         else
@@ -666,7 +666,6 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 soloedChannel.IsSoloed = false;
                 StatusMessage = "Cannot solo system audio devices";
-                Debug.WriteLine("Prevented solo on system audio device");
                 return;
             }
 
@@ -1804,29 +1803,20 @@ public partial class MainWindowViewModel : ViewModelBase
         // If any channel is soloed, mute all non-soloed channels
         var soloedChannels = Channels.Where(c => c.IsSoloed).ToList();
 
-        Debug.WriteLine($"[ApplySoloLogic] Soloed channels count: {soloedChannels.Count}");
-        foreach (var sc in soloedChannels)
-        {
-            Debug.WriteLine($"  - {sc.Name} is soloed");
-        }
-
         if (soloedChannels.Any())
         {
             // Mute all non-soloed channels (skip system devices during solo)
             foreach (var channel in Channels)
             {
                 bool shouldBeMuted = !channel.IsSoloed;
-                Debug.WriteLine($"[ApplySoloLogic] {channel.Name}: IsSoloed={channel.IsSoloed}, shouldBeMuted={shouldBeMuted}, Sessions={channel.AssignedSessions.Count}");
                 ApplyEffectiveMute(channel, shouldBeMuted, isFromSolo: true);
             }
         }
         else
         {
             // No solo active, restore user mute states (skip system devices)
-            Debug.WriteLine($"[ApplySoloLogic] No solo active, restoring mute states");
             foreach (var channel in Channels)
             {
-                Debug.WriteLine($"[ApplySoloLogic] {channel.Name}: IsMuted={channel.IsMuted}");
                 ApplyEffectiveMute(channel, channel.IsMuted, isFromSolo: true);
             }
         }
@@ -1845,24 +1835,16 @@ public partial class MainWindowViewModel : ViewModelBase
                  session.SessionId.StartsWith("input_") || 
                  session.SessionId.StartsWith("output_")))
             {
-                Debug.WriteLine($"[ApplyEffectiveMute] Skipping system device {session.SessionId} during solo for {channel.Name}");
                 continue;
             }
 
-            Debug.WriteLine($"[ApplyEffectiveMute] Setting {session.DisplayName} ({session.SessionId}) mute={isMuted} for channel {channel.Name}");
             _audioSessionManager.SetSessionMute(session.SessionId, isMuted);
         }
     }
 
     private void ApplyMuteToSessions(ChannelViewModel channel)
     {
-        Debug.WriteLine($"[ApplyMuteToSessions] Called for {channel.Name}, IsMuted={channel.IsMuted}, Sessions={channel.AssignedSessions.Count}");
-        
-        if (_audioSessionManager == null)
-        {
-            Debug.WriteLine($"[ApplyMuteToSessions] _audioSessionManager is NULL!");
-            return;
-        }
+        if (_audioSessionManager == null) return;
 
         // Check if this channel contains only system devices (master, input, output)
         bool isSystemDeviceChannel = channel.AssignedSessions.All(s => 
@@ -1881,20 +1863,44 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 // Don't apply mute changes to non-soloed application channels
                 // They should stay muted due to solo mode
-                Debug.WriteLine($"Mute toggle ignored for {channel.Name} - {soloedChannel.Name} is soloed");
                 return;
             }
         }
 
         // Apply the mute change
-        Debug.WriteLine($"[ApplyMuteToSessions] Applying mute to {channel.AssignedSessions.Count} sessions");
         foreach (var session in channel.AssignedSessions)
         {
-            Debug.WriteLine($"[ApplyMuteToSessions] Calling SetSessionMute for {session.DisplayName} ({session.SessionId})");
             _audioSessionManager.SetSessionMute(session.SessionId, channel.IsMuted);
         }
     }
     
+    /// <summary>
+    /// Plays startup animation and then restores LED states
+    /// </summary>
+    private async Task PlayStartupAnimationAndRestoreLeds()
+    {
+        await PlayStartupAnimation();
+        // Wait a bit for animation to settle
+        await Task.Delay(200);
+        // Restore all LED states based on current mute/solo states
+        RestoreAllLedStates();
+    }
+
+    /// <summary>
+    /// Restores all mute and solo LED states for all channels
+    /// </summary>
+    private void RestoreAllLedStates()
+    {
+        foreach (var channel in Channels)
+        {
+            // Restore mute LED
+            SendMuteLedFeedback(channel, channel.IsMuted);
+            
+            // Restore solo LED
+            SendSoloLedFeedback(channel, channel.IsSoloed);
+        }
+    }
+
     /// <summary>
     /// Plays a cool LED startup animation on M-Vave SMC mixer
     /// </summary>
