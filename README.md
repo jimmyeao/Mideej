@@ -32,6 +32,14 @@ A powerful MIDI to Windows audio mixer controller for .NET 9. Mideej lets you co
 ### Edit Mappings
 <img width="700" height="500" alt="MIDI controller preset configuration" src="https://github.com/user-attachments/assets/353961e0-c229-4a7f-94d0-d533275b3ece" />
 
+## Running on a small 1920x480 screen in fullscreen mode
+
+
+https://github.com/user-attachments/assets/5d78b155-1a26-405c-a27e-e7a0cd616414
+
+
+
+
 ## Requirements
 
 - Windows 10 version 1809 (build 17763) or later
