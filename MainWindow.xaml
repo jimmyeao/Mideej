@@ -81,6 +81,11 @@
                                 Orientation="Horizontal"
                                 HorizontalAlignment="Right"
                                 Margin="12">
+                        <Button Content="⛶"
+                                Style="{StaticResource IconButton}"
+                                Command="{Binding ToggleFullScreenModeCommand}"
+                                ToolTip="Toggle Full Screen Mode"
+                                Margin="4,0"/>
                         <Button Content="—"
                                 Style="{StaticResource IconButton}"
                                 Click="MinimizeButton_Click"
@@ -102,7 +107,8 @@
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,1"
-                    Padding="20,12">
+                    Padding="20,12"
+                    Visibility="{Binding IsFullScreenMode, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -173,8 +179,10 @@
             <ScrollViewer Grid.Row="2"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Disabled"
-                          Margin="20">
-                <ItemsControl ItemsSource="{Binding Channels}">
+                          Margin="20"
+                          HorizontalContentAlignment="{Binding IsFullScreenMode, Converter={StaticResource FullScreenToAlignmentConverter}}">
+                <ItemsControl ItemsSource="{Binding Channels}"
+                              HorizontalAlignment="{Binding IsFullScreenMode, Converter={StaticResource FullScreenToAlignmentConverter}}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel Orientation="Horizontal"/>

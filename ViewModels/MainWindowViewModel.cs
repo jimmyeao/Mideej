@@ -5,9 +5,11 @@ using Mideej.Services;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.IO;
 
 namespace Mideej.ViewModels;
 
@@ -69,6 +71,13 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool _startMinimized;
 
+    partial void OnStartMinimizedChanged(bool value)
+    {
+        // Keep the startup registry value in sync when this changes
+        // Only update if StartWithWindows is enabled so we don't create an entry unintentionally
+        UpdateStartupRegistry(StartWithWindows);
+    }
+
     [ObservableProperty]
     private double _fontSizeScale = 1.0;
 
@@ -82,6 +91,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private double _minWindowWidth = 600;
+
+    [ObservableProperty]
+    private bool _isFullScreenMode;
 
     partial void OnStartWithWindowsChanged(bool value)
     {
@@ -393,6 +405,13 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void ToggleFullScreenMode()
+    {
+        IsFullScreenMode = !IsFullScreenMode;
+        StatusMessage = IsFullScreenMode ? "Full Screen Mode" : "Normal Mode";
+    }
+
+    [RelayCommand]
     private void OpenSettings()
     {
         var settingsViewModel = new SettingsViewModel(this, _configurationService);
@@ -639,12 +658,15 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (sender is ChannelViewModel soloedChannel && soloedChannel.IsSoloed)
         {
-            // Prevent soloing the master volume channel
-            if (soloedChannel.AssignedSessions.Any(s => s.SessionId == "master_output"))
+            // Prevent soloing system devices (master volume, input/output devices)
+            if (soloedChannel.AssignedSessions.Any(s => 
+                s.SessionId == "master_output" ||
+                s.SessionId.StartsWith("input_") ||
+                s.SessionId.StartsWith("output_")))
             {
                 soloedChannel.IsSoloed = false;
-                StatusMessage = "Cannot solo the master volume channel";
-                Console.WriteLine("Prevented solo on master volume channel");
+                StatusMessage = "Cannot solo system audio devices";
+                Debug.WriteLine("Prevented solo on system audio device");
                 return;
             }
 
@@ -1782,64 +1804,93 @@ public partial class MainWindowViewModel : ViewModelBase
         // If any channel is soloed, mute all non-soloed channels
         var soloedChannels = Channels.Where(c => c.IsSoloed).ToList();
 
+        Debug.WriteLine($"[ApplySoloLogic] Soloed channels count: {soloedChannels.Count}");
+        foreach (var sc in soloedChannels)
+        {
+            Debug.WriteLine($"  - {sc.Name} is soloed");
+        }
+
         if (soloedChannels.Any())
         {
-            // Mute all non-soloed channels
+            // Mute all non-soloed channels (skip system devices during solo)
             foreach (var channel in Channels)
             {
                 bool shouldBeMuted = !channel.IsSoloed;
-                ApplyEffectiveMute(channel, shouldBeMuted);
+                Debug.WriteLine($"[ApplySoloLogic] {channel.Name}: IsSoloed={channel.IsSoloed}, shouldBeMuted={shouldBeMuted}, Sessions={channel.AssignedSessions.Count}");
+                ApplyEffectiveMute(channel, shouldBeMuted, isFromSolo: true);
             }
         }
         else
         {
-            // No solo active, restore user mute states
+            // No solo active, restore user mute states (skip system devices)
+            Debug.WriteLine($"[ApplySoloLogic] No solo active, restoring mute states");
             foreach (var channel in Channels)
             {
-                ApplyEffectiveMute(channel, channel.IsMuted);
+                Debug.WriteLine($"[ApplySoloLogic] {channel.Name}: IsMuted={channel.IsMuted}");
+                ApplyEffectiveMute(channel, channel.IsMuted, isFromSolo: true);
             }
         }
     }
 
-    private void ApplyEffectiveMute(ChannelViewModel channel, bool isMuted)
+    private void ApplyEffectiveMute(ChannelViewModel channel, bool isMuted, bool isFromSolo = false)
     {
         if (_audioSessionManager == null) return;
 
         foreach (var session in channel.AssignedSessions)
         {
-            // Don't mute master volume during solo
-            if (session.SessionId == "master_output")
+            // During solo operations, don't mute system devices (master, input, output)
+            // But allow manual mute to work on all devices
+            if (isFromSolo && 
+                (session.SessionId == "master_output" || 
+                 session.SessionId.StartsWith("input_") || 
+                 session.SessionId.StartsWith("output_")))
             {
+                Debug.WriteLine($"[ApplyEffectiveMute] Skipping system device {session.SessionId} during solo for {channel.Name}");
                 continue;
             }
 
+            Debug.WriteLine($"[ApplyEffectiveMute] Setting {session.DisplayName} ({session.SessionId}) mute={isMuted} for channel {channel.Name}");
             _audioSessionManager.SetSessionMute(session.SessionId, isMuted);
         }
     }
 
     private void ApplyMuteToSessions(ChannelViewModel channel)
     {
-        if (_audioSessionManager == null) return;
+        Debug.WriteLine($"[ApplyMuteToSessions] Called for {channel.Name}, IsMuted={channel.IsMuted}, Sessions={channel.AssignedSessions.Count}");
+        
+        if (_audioSessionManager == null)
+        {
+            Debug.WriteLine($"[ApplyMuteToSessions] _audioSessionManager is NULL!");
+            return;
+        }
+
+        // Check if this channel contains only system devices (master, input, output)
+        bool isSystemDeviceChannel = channel.AssignedSessions.All(s => 
+            s.SessionId == "master_output" || 
+            s.SessionId.StartsWith("input_") || 
+            s.SessionId.StartsWith("output_"));
 
         // Check if any channel is currently soloed
         var soloedChannel = Channels.FirstOrDefault(c => c.IsSoloed);
 
-        if (soloedChannel != null)
+        if (soloedChannel != null && !isSystemDeviceChannel)
         {
-            // Solo mode is active - only allow mute changes on the soloed channel
-            // Non-soloed channels must remain muted regardless of their IsMuted flag
+            // Solo mode is active - only allow mute changes on application channels that are soloed
+            // But always allow system devices to be muted
             if (channel != soloedChannel)
             {
-                // Don't apply mute changes to non-soloed channels
+                // Don't apply mute changes to non-soloed application channels
                 // They should stay muted due to solo mode
-                Console.WriteLine($"Mute toggle ignored for {channel.Name} - {soloedChannel.Name} is soloed");
+                Debug.WriteLine($"Mute toggle ignored for {channel.Name} - {soloedChannel.Name} is soloed");
                 return;
             }
         }
 
         // Apply the mute change
+        Debug.WriteLine($"[ApplyMuteToSessions] Applying mute to {channel.AssignedSessions.Count} sessions");
         foreach (var session in channel.AssignedSessions)
         {
+            Debug.WriteLine($"[ApplyMuteToSessions] Calling SetSessionMute for {session.DisplayName} ({session.SessionId})");
             _audioSessionManager.SetSessionMute(session.SessionId, channel.IsMuted);
         }
     }
@@ -1924,21 +1975,27 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             const string appName = "Mideej";
+            // Ensure the Run key exists; create if missing
             var startupKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
-                "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
+                "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true)
+                ?? Microsoft.Win32.Registry.CurrentUser.CreateSubKey(
+                    "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
 
             if (startupKey == null)
             {
-                Console.WriteLine("Could not access startup registry key");
+                Console.WriteLine("Could not access or create startup registry key");
                 return;
             }
 
             if (enable)
             {
-                var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
-                if (exePath != null)
+                var target = ResolveStartupTargetPath();
+                if (!string.IsNullOrEmpty(target))
                 {
-                    var startupValue = StartMinimized ? $"\"{exePath}\" --minimized" : $"\"{exePath}\"";
+                    // Use dfshim for ClickOnce appref-ms for reliability; otherwise run the exe directly
+                    string startupValue = target.EndsWith(".appref-ms", StringComparison.OrdinalIgnoreCase)
+                        ? $"rundll32.exe dfshim.dll,ShOpenVerbShortcut \"{target}\""
+                        : $"\"{target}\"";
                     startupKey.SetValue(appName, startupValue);
                     Console.WriteLine($"Added to Windows startup: {startupValue}");
                 }
@@ -1955,6 +2012,39 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             Console.WriteLine($"Error updating startup registry: {ex.Message}");
             StatusMessage = $"Error updating startup: {ex.Message}";
+        }
+    }
+
+    private string? ResolveStartupTargetPath()
+    {
+        try
+        {
+            // Try to locate a ClickOnce .appref-ms shortcut first (stable across updates)
+            var programs = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
+            if (Directory.Exists(programs))
+            {
+                var candidates = Directory.GetFiles(programs, "*.appref-ms", SearchOption.AllDirectories);
+                var appref = candidates.FirstOrDefault(p =>
+                    string.Equals(Path.GetFileNameWithoutExtension(p), "Mideej", StringComparison.OrdinalIgnoreCase))
+                    ?? candidates.FirstOrDefault(p => p.IndexOf("Mideej", StringComparison.OrdinalIgnoreCase) >= 0);
+                if (!string.IsNullOrEmpty(appref))
+                    return appref;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"ResolveStartupTargetPath appref-ms probe failed: {ex.Message}");
+        }
+
+        try
+        {
+            // Fallback to current executable path
+            return System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"ResolveStartupTargetPath exe probe failed: {ex.Message}");
+            return null;
         }
     }
 }

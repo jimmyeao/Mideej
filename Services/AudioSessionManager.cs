@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Threading;
@@ -38,6 +39,10 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     private const int SessionGraceRemovalMs = 15000; // Keep missing sessions for 15s
     private const int DeviceRefreshIntervalMs = 3000; // refresh device list every 3s at most
     private readonly ConcurrentDictionary<string, float> _peakLevelsBuffer = new();
+    private int _meterErrorCount = 0;
+    private DateTime _lastMeterError = DateTime.MinValue;
+    private const int MaxConsecutiveErrors = 10;
+    private static readonly string _logFilePath = Path.Combine(Path.GetTempPath(), "Mideej_AudioErrors.log");
 
     public event EventHandler<AudioSessionChangedEventArgs>? SessionsChanged;
     public event EventHandler<SessionVolumeChangedEventArgs>? SessionVolumeChanged;
@@ -62,20 +67,32 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             // Add master output session
             if (_defaultDevice != null)
             {
-                sessions.Add(new AudioSessionInfo
+                try
                 {
-                    SessionId = "master_output",
-                    DisplayName = "Master Volume",
-                    ProcessName = "System",
-                    SessionType = AudioSessionType.Output,
-                    Volume = _defaultDevice.AudioEndpointVolume.MasterVolumeLevelScalar,
-                    IsMuted = _defaultDevice.AudioEndpointVolume.Mute,
-                    PeakLevel = _defaultDevice.AudioMeterInformation.MasterPeakValue
-                });
+                    var masterSession = new AudioSessionInfo
+                    {
+                        SessionId = "master_output",
+                        DisplayName = "Master Volume",
+                        ProcessName = "System",
+                        SessionType = AudioSessionType.Output,
+                        Volume = _defaultDevice.AudioEndpointVolume.MasterVolumeLevelScalar,
+                        IsMuted = _defaultDevice.AudioEndpointVolume.Mute,
+                        PeakLevel = _defaultDevice.AudioMeterInformation.MasterPeakValue
+                    };
+                    sessions.Add(masterSession);
+                    Debug.WriteLine($"[GetActiveSessions] Added master_output - Muted={masterSession.IsMuted}");
+                }
+                catch (InvalidCastException) { /* COM object released */ }
+                catch (COMException) { /* Device disconnected */ }
+                catch { }
+            }
+            else
+            {
+                Debug.WriteLine($"[GetActiveSessions] _defaultDevice is NULL!");
             }
 
             // Use cached input devices (avoid re-enumeration here)
-            foreach (var kvp in _inputDevices)
+            foreach (var kvp in _inputDevices.ToArray())
             {
                 var device = kvp.Value;
                 try
@@ -91,16 +108,19 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         PeakLevel = device.AudioMeterInformation.MasterPeakValue
                     });
                 }
+                catch (InvalidCastException) { /* COM object released */ }
+                catch (COMException) { /* Device disconnected */ }
                 catch { }
             }
 
             // Use cached output devices
-            foreach (var kvp in _outputDevices)
+            Debug.WriteLine($"[GetActiveSessions] Output devices count: {_outputDevices.Count}");
+            foreach (var kvp in _outputDevices.ToArray())
             {
                 var device = kvp.Value;
                 try
                 {
-                    sessions.Add(new AudioSessionInfo
+                    var outputSession = new AudioSessionInfo
                     {
                         SessionId = kvp.Key,
                         DisplayName = device.FriendlyName,
@@ -109,9 +129,22 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         Volume = device.AudioEndpointVolume.MasterVolumeLevelScalar,
                         IsMuted = device.AudioEndpointVolume.Mute,
                         PeakLevel = device.AudioMeterInformation.MasterPeakValue
-                    });
+                    };
+                    sessions.Add(outputSession);
+                    Debug.WriteLine($"[GetActiveSessions] Added output device {kvp.Key} - {device.FriendlyName} - Muted={outputSession.IsMuted}");
                 }
-                catch { }
+                catch (InvalidCastException ex) 
+                { 
+                    Debug.WriteLine($"[GetActiveSessions] InvalidCastException for output device {kvp.Key}: {ex.Message}");
+                }
+                catch (COMException ex) 
+                { 
+                    Debug.WriteLine($"[GetActiveSessions] COMException for output device {kvp.Key}: {ex.Message}");
+                }
+                catch (Exception ex) 
+                { 
+                    Debug.WriteLine($"[GetActiveSessions] Exception for output device {kvp.Key}: {ex.Message}");
+                }
             }
 
             // De-duplicate application sessions by ProcessId; prefer default device and better names
@@ -202,6 +235,9 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     {
         if (_isMonitoring)
             return;
+
+        // Add global exception handler for unhandled exceptions in background threads
+        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
 
         try
         {
@@ -299,10 +335,20 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         }
     }
 
+    private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        if (e.ExceptionObject is InvalidCastException ex)
+        {
+            Console.WriteLine($"[AppDomain] Unhandled InvalidCastException: {ex.Message}\nStackTrace: {ex.StackTrace}");
+        }
+    }
+
     public void StopMonitoring()
     {
         if (!_isMonitoring)
             return;
+
+        AppDomain.CurrentDomain.UnhandledException -= OnUnhandledException;
 
         try
         {
@@ -403,11 +449,13 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
     public void SetSessionMute(string sessionId, bool isMuted)
     {
+        Debug.WriteLine($"[SetSessionMute] Called for {sessionId}, isMuted={isMuted}");
         try
         {
             // Handle master output
             if (sessionId == "master_output" && _defaultDevice != null)
             {
+                Debug.WriteLine($"[SetSessionMute] Setting master_output mute={isMuted}");
                 _defaultDevice.AudioEndpointVolume.Mute = isMuted;
                 return;
             }
@@ -415,15 +463,23 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             // Handle input devices
             if (sessionId.StartsWith("input_") && _inputDevices.TryGetValue(sessionId, out var inputDevice))
             {
+                Debug.WriteLine($"[SetSessionMute] Setting input device {sessionId} mute={isMuted}");
                 inputDevice.AudioEndpointVolume.Mute = isMuted;
+                Debug.WriteLine($"[SetSessionMute] Successfully set input device mute");
                 return;
             }
 
             // Handle output devices
             if (sessionId.StartsWith("output_") && _outputDevices.TryGetValue(sessionId, out var outputDevice))
             {
+                Debug.WriteLine($"[SetSessionMute] Found output device in dictionary");
                 outputDevice.AudioEndpointVolume.Mute = isMuted;
+                Debug.WriteLine($"[SetSessionMute] Successfully set output device mute");
                 return;
+            }
+            else if (sessionId.StartsWith("output_"))
+            {
+                Debug.WriteLine($"[SetSessionMute] Output device {sessionId} NOT FOUND in _outputDevices!");
             }
 
             // Handle application sessions
@@ -474,6 +530,14 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 }
             }
         }
+        catch (InvalidCastException)
+        {
+            // COM object released - ignore
+        }
+        catch (COMException)
+        {
+            // Device/session disconnected - ignore
+        }
         catch (Exception ex)
         {
             Console.WriteLine($"Error getting peak level: {ex.Message}");
@@ -501,7 +565,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     {
         try
         {
-            if (_deviceEnumerator == null)
+            if (_deviceEnumerator == null || !_isMonitoring)
                 return;
 
             // refresh device caches at most every few seconds
@@ -522,8 +586,23 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 var deviceId = device.ID;
 
                 SessionCollection sessionsOnDevice;
-                try { sessionsOnDevice = device.AudioSessionManager.Sessions; }
-                catch { continue; }
+                try 
+                { 
+                    sessionsOnDevice = device.AudioSessionManager.Sessions; 
+                }
+                catch (InvalidCastException ex)
+                {
+                    var logMsg = $"[{DateTime.Now:HH:mm:ss.fff}] InvalidCastException getting Sessions for device {deviceId}: {ex.Message}\nStackTrace: {ex.StackTrace}\n";
+                    Console.WriteLine(logMsg);
+                    try { File.AppendAllText(_logFilePath, logMsg); } catch { }
+                    continue;
+                }
+                catch (Exception ex)
+                {
+                    var logMsg = $"[{DateTime.Now:HH:mm:ss.fff}] Exception getting Sessions for device {deviceId}: {ex.GetType().Name} - {ex.Message}\n";
+                    try { File.AppendAllText(_logFilePath, logMsg); } catch { }
+                    continue;
+                }
 
                 for (int i = 0; i < sessionsOnDevice.Count; i++)
                 {
@@ -545,12 +624,24 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         {
                             var wrapper = _sessions[sessionKey];
                             wrapper.Session = session;
-                            wrapper.VolumeControl = session.SimpleAudioVolume;
-                            wrapper.MeterInfo = session.AudioMeterInformation;
-                            if (wrapper.VolumeControl != null)
+                            try
                             {
-                                wrapper.Info.Volume = wrapper.VolumeControl.Volume;
-                                wrapper.Info.IsMuted = wrapper.VolumeControl.Mute;
+                                wrapper.VolumeControl = session.SimpleAudioVolume;
+                                wrapper.MeterInfo = session.AudioMeterInformation;
+                                if (wrapper.VolumeControl != null)
+                                {
+                                    wrapper.Info.Volume = wrapper.VolumeControl.Volume;
+                                    wrapper.Info.IsMuted = wrapper.VolumeControl.Mute;
+                                }
+                            }
+                            catch (InvalidCastException ex)
+                            {
+                                Console.WriteLine($"[RefreshSessions] InvalidCastException accessing session properties for {sessionKey}: {ex.Message}");
+                                continue;
+                            }
+                            catch (COMException)
+                            {
+                                continue;
                             }
                             wrapper.LastSeen = nowUtc;
                             _processIndex[(wrapper.Info.ProcessId, deviceId)] = sessionKey;
@@ -559,8 +650,20 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         {
                             var wrapper = existing;
                             wrapper.Session = session;
-                            wrapper.VolumeControl = session.SimpleAudioVolume;
-                            wrapper.MeterInfo = session.AudioMeterInformation;
+                            try
+                            {
+                                wrapper.VolumeControl = session.SimpleAudioVolume;
+                                wrapper.MeterInfo = session.AudioMeterInformation;
+                            }
+                            catch (InvalidCastException ex)
+                            {
+                                Console.WriteLine($"[RefreshSessions] InvalidCastException accessing session properties for {sessionKey}: {ex.Message}");
+                                continue;
+                            }
+                            catch (COMException)
+                            {
+                                continue;
+                            }
                             wrapper.LastSeen = nowUtc;
                             wrapper.Info.ProcessId = processId;
                             _sessions.TryRemove(oldKey, out _);
@@ -575,12 +678,29 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
                             info.DisplayName = NormalizeDisplayName(info);
 
+                            SimpleAudioVolume? volumeControl = null;
+                            AudioMeterInformation? meterInfo = null;
+                            try
+                            {
+                                volumeControl = session.SimpleAudioVolume;
+                                meterInfo = session.AudioMeterInformation;
+                            }
+                            catch (InvalidCastException ex)
+                            {
+                                Console.WriteLine($"[RefreshSessions] InvalidCastException accessing new session properties for {sessionKey}: {ex.Message}");
+                                continue;
+                            }
+                            catch (COMException)
+                            {
+                                continue;
+                            }
+
                             var wrapper = new SessionWrapper
                             {
                                 Session = session,
                                 Info = info,
-                                VolumeControl = session.SimpleAudioVolume,
-                                MeterInfo = session.AudioMeterInformation,
+                                VolumeControl = volumeControl,
+                                MeterInfo = meterInfo,
                                 LastSeen = nowUtc
                             };
                             try { session.RegisterEventClient(new SessionEventsHandler(this, sessionKey)); } catch { }
@@ -589,7 +709,18 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                             newSessions.Add(info.DisplayName);
                         }
                     }
-                    catch { }
+                    catch (InvalidCastException ex)
+                    {
+                        Console.WriteLine($"[RefreshSessions] InvalidCastException in session loop iteration {i}: {ex.Message}");
+                    }
+                    catch (COMException ex)
+                    {
+                        Console.WriteLine($"[RefreshSessions] COMException in session loop iteration {i}: {ex.Message}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[RefreshSessions] {ex.GetType().Name} in session loop iteration {i}: {ex.Message}");
+                    }
                 }
             }
 
@@ -617,9 +748,17 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 NotifySessionsChanged();
             }
         }
+        catch (InvalidCastException ex)
+        {
+            Console.WriteLine($"[RefreshSessions] InvalidCastException: {ex.Message}\nStackTrace: {ex.StackTrace}");
+        }
+        catch (COMException ex)
+        {
+            Console.WriteLine($"[RefreshSessions] COMException: {ex.Message}");
+        }
         catch (Exception ex)
         {
-            Console.WriteLine($"[RefreshSessions] ERROR: {ex.Message}");
+            Console.WriteLine($"[RefreshSessions] {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -673,6 +812,45 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
     private void MeterTimer_Tick(object? sender, EventArgs e)
     {
+        if (!_isMonitoring)
+            return;
+
+        // If we've had too many consecutive errors, slow down the meter rate
+        if (_meterErrorCount > MaxConsecutiveErrors)
+        {
+            if ((DateTime.UtcNow - _lastMeterError).TotalSeconds < 5)
+            {
+                return; // Skip this tick
+            }
+            _meterErrorCount = 0; // Reset after cooldown
+        }
+
+        try
+        {
+            MeterTimer_Tick_Internal();
+            _meterErrorCount = 0; // Reset on success
+        }
+        catch (InvalidCastException ex)
+        {
+            _meterErrorCount++;
+            _lastMeterError = DateTime.UtcNow;
+            if (_meterErrorCount <= 3) // Only log first few
+            {
+                var logMsg = $"[{DateTime.Now:HH:mm:ss.fff}] [MeterTimer TOP LEVEL] InvalidCastException: {ex.Message}\nStackTrace: {ex.StackTrace}\n";
+                Console.WriteLine(logMsg);
+                try { File.AppendAllText(_logFilePath, logMsg); } catch { }
+            }
+        }
+        catch (Exception ex)
+        {
+            _meterErrorCount++;
+            _lastMeterError = DateTime.UtcNow;
+            Console.WriteLine($"[MeterTimer TOP LEVEL] {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private void MeterTimer_Tick_Internal()
+    {
         try
         {
             // Collect peaks off the UI thread
@@ -680,29 +858,113 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
             if (_defaultDevice != null)
             {
-                try { _peakLevelsBuffer["master_output"] = _defaultDevice.AudioMeterInformation.MasterPeakValue; } catch { }
+                try 
+                { 
+                    var meterInfo = _defaultDevice.AudioMeterInformation;
+                    if (meterInfo != null)
+                    {
+                        _peakLevelsBuffer["master_output"] = meterInfo.MasterPeakValue;
+                    }
+                } 
+                catch (InvalidCastException ex) 
+                { 
+                    Debug.WriteLine($"[MeterTimer] InvalidCastException on master_output: {ex.Message}");
+                    // Don't null out the device, just skip this tick
+                }
+                catch (COMException ex) 
+                { 
+                    Debug.WriteLine($"[MeterTimer] COMException on master_output: {ex.Message}");
+                    // Don't null out the device, just skip this tick
+                }
+                catch (Exception ex) 
+                { 
+                    Console.WriteLine($"[MeterTimer] Exception on master_output: {ex.GetType().Name} - {ex.Message}");
+                }
             }
 
-            foreach (var kvp in _inputDevices)
+            // Copy to array to avoid collection modified exceptions
+            var inputDevicesCopy = _inputDevices.ToArray();
+            foreach (var kvp in inputDevicesCopy)
             {
-                try { _peakLevelsBuffer[kvp.Key] = kvp.Value.AudioMeterInformation.MasterPeakValue; } catch { }
+                try 
+                { 
+                    var meterInfo = kvp.Value?.AudioMeterInformation;
+                    if (meterInfo != null)
+                    {
+                        _peakLevelsBuffer[kvp.Key] = meterInfo.MasterPeakValue;
+                    }
+                } 
+                catch (InvalidCastException ex) 
+                { 
+                    Console.WriteLine($"[MeterTimer] InvalidCastException on input device {kvp.Key}: {ex.Message}");
+                    _inputDevices.TryRemove(kvp.Key, out _);
+                }
+                catch (COMException ex) 
+                { 
+                    Console.WriteLine($"[MeterTimer] COMException on input device {kvp.Key}: {ex.Message}");
+                    _inputDevices.TryRemove(kvp.Key, out _);
+                }
+                catch (Exception ex) 
+                { 
+                    Console.WriteLine($"[MeterTimer] Exception on input device {kvp.Key}: {ex.GetType().Name} - {ex.Message}");
+                }
             }
-            foreach (var kvp in _outputDevices)
+
+            var outputDevicesCopy = _outputDevices.ToArray();
+            foreach (var kvp in outputDevicesCopy)
             {
-                try { _peakLevelsBuffer[kvp.Key] = kvp.Value.AudioMeterInformation.MasterPeakValue; } catch { }
+                try 
+                { 
+                    var meterInfo = kvp.Value?.AudioMeterInformation;
+                    if (meterInfo != null)
+                    {
+                        _peakLevelsBuffer[kvp.Key] = meterInfo.MasterPeakValue;
+                    }
+                } 
+                catch (InvalidCastException ex) 
+                { 
+                    Console.WriteLine($"[MeterTimer] InvalidCastException on output device {kvp.Key}: {ex.Message}");
+                    _outputDevices.TryRemove(kvp.Key, out _);
+                }
+                catch (COMException ex) 
+                { 
+                    Console.WriteLine($"[MeterTimer] COMException on output device {kvp.Key}: {ex.Message}");
+                    _outputDevices.TryRemove(kvp.Key, out _);
+                }
+                catch (Exception ex) 
+                { 
+                    Console.WriteLine($"[MeterTimer] Exception on output device {kvp.Key}: {ex.GetType().Name} - {ex.Message}");
+                }
             }
-            foreach (var kvp in _sessions)
+
+            var sessionsCopy = _sessions.ToArray();
+            foreach (var kvp in sessionsCopy)
             {
                 try
                 {
-                    if (kvp.Value.MeterInfo != null)
+                    var meterInfo = kvp.Value?.MeterInfo;
+                    if (meterInfo != null)
                     {
-                        var peak = kvp.Value.MeterInfo.MasterPeakValue;
+                        var peak = meterInfo.MasterPeakValue;
                         kvp.Value.Info.PeakLevel = peak; // keep cached
                         _peakLevelsBuffer[kvp.Key] = peak;
                     }
                 }
-                catch { }
+                catch (InvalidCastException ex) 
+                { 
+                    Console.WriteLine($"[MeterTimer] InvalidCastException on session {kvp.Key}: {ex.Message}");
+                    // Mark for removal
+                    kvp.Value.LastSeen = DateTime.UtcNow.AddMilliseconds(-(SessionGraceRemovalMs + 100));
+                }
+                catch (COMException ex) 
+                { 
+                    Console.WriteLine($"[MeterTimer] COMException on session {kvp.Key}: {ex.Message}");
+                    kvp.Value.LastSeen = DateTime.UtcNow.AddMilliseconds(-(SessionGraceRemovalMs + 100));
+                }
+                catch (Exception ex) 
+                { 
+                    Console.WriteLine($"[MeterTimer] Exception on session {kvp.Key}: {ex.GetType().Name} - {ex.Message}");
+                }
             }
 
             if (_peakLevelsBuffer.Count > 0)
@@ -710,13 +972,17 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 var payload = new Dictionary<string, float>(_peakLevelsBuffer);
                 DispatcherHelper.RunOnUIThread(() =>
                 {
-                    PeakLevelsUpdated?.Invoke(this, new PeakLevelEventArgs { PeakLevels = payload });
+                    try
+                    {
+                        PeakLevelsUpdated?.Invoke(this, new PeakLevelEventArgs { PeakLevels = payload });
+                    }
+                    catch { /* Ignore errors in event handlers */ }
                 });
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error in meter timer: {ex.Message}");
+            Console.WriteLine($"[MeterTimer_Tick_Internal] Error: {ex.GetType().Name} - {ex.Message}");
         }
     }
 
@@ -750,24 +1016,36 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
     private void UpdateDeviceCaches(bool force = false)
     {
-        if (_deviceEnumerator == null) return;
+        if (_deviceEnumerator == null || !_isMonitoring) return;
         var nowUtc = DateTime.UtcNow;
         if (!force && (nowUtc - _lastDeviceRefresh).TotalMilliseconds < DeviceRefreshIntervalMs)
             return;
 
+        var logMsg = $"[{DateTime.Now:HH:mm:ss.fff}] UpdateDeviceCaches called\n";
+        try { File.AppendAllText(_logFilePath, logMsg); } catch { }
+
         // Capture new input devices
         try
         {
+            var logMsg2 = $"[{DateTime.Now:HH:mm:ss.fff}] About to enumerate input devices\n";
+            try { File.AppendAllText(_logFilePath, logMsg2); } catch { }
+            
             var inputDevices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
             var seen = new HashSet<string>();
             foreach (var device in inputDevices)
             {
-                var id = "input_" + device.ID;
-                seen.Add(id);
-                _inputDevices.AddOrUpdate(id, device, (_, old) => { try { old.Dispose(); } catch { } return device; });
+                try
+                {
+                    var id = "input_" + device.ID;
+                    seen.Add(id);
+                    _inputDevices.AddOrUpdate(id, device, (_, old) => { try { old.Dispose(); } catch { } return device; });
+                }
+                catch (InvalidCastException) { /* COM error */ }
+                catch (COMException) { /* Device error */ }
+                catch { }
             }
             // Remove missing
-            foreach (var kvp in _inputDevices)
+            foreach (var kvp in _inputDevices.ToArray())
             {
                 if (!seen.Contains(kvp.Key))
                 {
@@ -775,20 +1053,44 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 }
             }
         }
-        catch { }
+        catch (InvalidCastException ex) 
+        { 
+            var logMsg3 = $"[{DateTime.Now:HH:mm:ss.fff}] InvalidCastException in input device enumeration: {ex.Message}\nStackTrace: {ex.StackTrace}\n";
+            Console.WriteLine(logMsg3);
+            try { File.AppendAllText(_logFilePath, logMsg3); } catch { }
+        }
+        catch (COMException ex) 
+        { 
+            var logMsg4 = $"[{DateTime.Now:HH:mm:ss.fff}] COMException in input device enumeration: {ex.Message}\n";
+            try { File.AppendAllText(_logFilePath, logMsg4); } catch { }
+        }
+        catch (Exception ex) 
+        { 
+            var logMsg5 = $"[{DateTime.Now:HH:mm:ss.fff}] Exception in input device enumeration: {ex.GetType().Name} - {ex.Message}\n";
+            try { File.AppendAllText(_logFilePath, logMsg5); } catch { }
+        }
 
         // Capture new output devices
         try
         {
+            var logMsg6 = $"[{DateTime.Now:HH:mm:ss.fff}] About to enumerate output devices\n";
+            try { File.AppendAllText(_logFilePath, logMsg6); } catch { }
+            
             var outputDevices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
             var seen = new HashSet<string>();
             foreach (var device in outputDevices)
             {
-                var id = "output_" + device.ID;
-                seen.Add(id);
-                _outputDevices.AddOrUpdate(id, device, (_, old) => { try { old.Dispose(); } catch { } return device; });
+                try
+                {
+                    var id = "output_" + device.ID;
+                    seen.Add(id);
+                    _outputDevices.AddOrUpdate(id, device, (_, old) => { try { old.Dispose(); } catch { } return device; });
+                }
+                catch (InvalidCastException) { /* COM error */ }
+                catch (COMException) { /* Device error */ }
+                catch { }
             }
-            foreach (var kvp in _outputDevices)
+            foreach (var kvp in _outputDevices.ToArray())
             {
                 if (!seen.Contains(kvp.Key))
                 {
@@ -796,7 +1098,22 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 }
             }
         }
-        catch { }
+        catch (InvalidCastException ex) 
+        { 
+            var logMsg7 = $"[{DateTime.Now:HH:mm:ss.fff}] InvalidCastException in output device enumeration: {ex.Message}\nStackTrace: {ex.StackTrace}\n";
+            Console.WriteLine(logMsg7);
+            try { File.AppendAllText(_logFilePath, logMsg7); } catch { }
+        }
+        catch (COMException ex) 
+        { 
+            var logMsg8 = $"[{DateTime.Now:HH:mm:ss.fff}] COMException in output device enumeration: {ex.Message}\n";
+            try { File.AppendAllText(_logFilePath, logMsg8); } catch { }
+        }
+        catch (Exception ex) 
+        { 
+            var logMsg9 = $"[{DateTime.Now:HH:mm:ss.fff}] Exception in output device enumeration: {ex.GetType().Name} - {ex.Message}\n";
+            try { File.AppendAllText(_logFilePath, logMsg9); } catch { }
+        }
 
         _lastDeviceRefresh = nowUtc;
     }

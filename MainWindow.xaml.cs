@@ -3,6 +3,7 @@ using System.Windows.Input;
 using Mideej.ViewModels;
 using System.Drawing;
 using System.Windows.Forms;
+using System.IO;
 
 namespace Mideej;
 
@@ -13,6 +14,13 @@ public partial class MainWindow : Window
 {
     private NotifyIcon? _notifyIcon;
     private bool _isClosing = false;
+    private WindowState _previousWindowState;
+    private WindowStyle _previousWindowStyle;
+    private ResizeMode _previousResizeMode;
+    private double _previousLeft;
+    private double _previousTop;
+    private double _previousWidth;
+    private double _previousHeight;
 
     public MainWindow(MainWindowViewModel viewModel)
     {
@@ -20,23 +28,70 @@ public partial class MainWindow : Window
         DataContext = viewModel;
         Closing += MainWindow_Closing;
         StateChanged += MainWindow_StateChanged;
+        KeyDown += MainWindow_KeyDown;
         Loaded += (s, e) => ApplyFontSize(viewModel.FontSizeScale);
         viewModel.FontSizeChanged += (s, e) => ApplyFontSize(viewModel.FontSizeScale);
+        viewModel.PropertyChanged += ViewModel_PropertyChanged;
         
         InitializeTrayIcon();
     }
 
+    // Called by App.xaml.cs to ensure that a startup-minimized window is hidden to tray immediately
+    public void ApplyStartupMinimizeToTray(bool minimizeToTray)
+    {
+        if (WindowState == WindowState.Minimized && minimizeToTray)
+        {
+            MinimizeToTrayNow(showBalloon: false);
+        }
+    }
+
+    private void MinimizeToTrayNow(bool showBalloon)
+    {
+        ShowInTaskbar = false;
+        Hide();
+        if (_notifyIcon != null)
+        {
+            _notifyIcon.Visible = true;
+            if (showBalloon)
+            {
+                _notifyIcon.ShowBalloonTip(1000, "Mideej", "Minimized to tray. Double-click to restore.", ToolTipIcon.None);
+            }
+        }
+    }
+
     private void InitializeTrayIcon()
     {
-        _notifyIcon = new NotifyIcon
+        try
         {
-            Icon = new Icon("appicon.ico"),
-            Text = "Mideej - MIDI Audio Mixer",
-            Visible = false
-        };
+            Icon icon;
+            try
+            {
+                var icoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appicon.ico");
+                icon = File.Exists(icoPath) ? new Icon(icoPath) : SystemIcons.Application;
+            }
+            catch
+            {
+                icon = SystemIcons.Application;
+            }
+
+            _notifyIcon = new NotifyIcon
+            {
+                Icon = icon,
+                Text = "Mideej - MIDI Audio Mixer",
+                Visible = false
+            };
+        }
+        catch (Exception ex)
+        {
+            // If tray icon initialization fails, log and continue without tray support
+            Console.WriteLine($"Failed to initialize tray icon: {ex.Message}");
+            _notifyIcon = null;
+            return;
+        }
 
         _notifyIcon.DoubleClick += (s, e) =>
         {
+            ShowInTaskbar = true;
             Show();
             WindowState = WindowState.Normal;
             _notifyIcon.Visible = false;
@@ -45,6 +100,7 @@ public partial class MainWindow : Window
         var contextMenu = new ContextMenuStrip();
         contextMenu.Items.Add("Show", null, (s, e) =>
         {
+            ShowInTaskbar = true;
             Show();
             WindowState = WindowState.Normal;
             _notifyIcon.Visible = false;
@@ -64,12 +120,15 @@ public partial class MainWindow : Window
         {
             if (WindowState == WindowState.Minimized && viewModel.MinimizeToTray)
             {
-                Hide();
+                MinimizeToTrayNow(showBalloon: true);
+            }
+            else if ((WindowState == WindowState.Normal || WindowState == WindowState.Maximized))
+            {
+                // Ensure taskbar shows again when restored
+                ShowInTaskbar = true;
                 if (_notifyIcon != null)
                 {
-                    _notifyIcon.Visible = true;
-                    // Show a subtle balloon tip with no icon (cleaner look)
-                    _notifyIcon.ShowBalloonTip(1000, "Mideej", "Minimized to tray. Double-click to restore.", ToolTipIcon.None);
+                    _notifyIcon.Visible = false;
                 }
             }
         }
@@ -130,6 +189,71 @@ public partial class MainWindow : Window
         {
             fe.ContextMenu.PlacementTarget = fe;
             fe.ContextMenu.IsOpen = true;
+        }
+    }
+
+    private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainWindowViewModel.IsFullScreenMode) && DataContext is MainWindowViewModel viewModel)
+        {
+            if (viewModel.IsFullScreenMode)
+            {
+                EnterFullScreen();
+            }
+            else
+            {
+                ExitFullScreen();
+            }
+        }
+    }
+
+    private void EnterFullScreen()
+    {
+        // Save current window state
+        _previousWindowState = WindowState;
+        _previousWindowStyle = WindowStyle;
+        _previousResizeMode = ResizeMode;
+        _previousLeft = Left;
+        _previousTop = Top;
+        _previousWidth = Width;
+        _previousHeight = Height;
+
+        // Set window to cover entire screen including taskbar
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        WindowState = WindowState.Normal; // Reset to normal first
+        
+        // Get the primary screen bounds
+        var screen = Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+        Left = screen.Bounds.Left;
+        Top = screen.Bounds.Top;
+        Width = screen.Bounds.Width;
+        Height = screen.Bounds.Height;
+        
+        Topmost = true; // Keep window on top of taskbar
+    }
+
+    private void ExitFullScreen()
+    {
+        // Restore previous window state
+        Topmost = false;
+        WindowStyle = _previousWindowStyle;
+        ResizeMode = _previousResizeMode;
+        
+        Left = _previousLeft;
+        Top = _previousTop;
+        Width = _previousWidth;
+        Height = _previousHeight;
+        
+        WindowState = _previousWindowState;
+    }
+
+    private void MainWindow_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && DataContext is MainWindowViewModel viewModel && viewModel.IsFullScreenMode)
+        {
+            viewModel.ToggleFullScreenModeCommand.Execute(null);
+            e.Handled = true;
         }
     }
 

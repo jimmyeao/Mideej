@@ -58,18 +58,24 @@ public partial class App : Application
         var mainWindow = _serviceProvider?.GetService<MainWindow>();
         if (mainWindow != null)
         {
-            // Check for --minimized command line argument or StartMinimized setting
-            bool hasMinimizedArg = e.Args.Contains("--minimized");
-            bool shouldStartMinimized = hasMinimizedArg && configService?.CurrentSettings.StartMinimized == true;
+            // Start minimized purely based on saved setting (no switch required)
+            bool shouldStartMinimized = configService?.CurrentSettings.StartMinimized == true;
             
+            mainWindow.Show();
+
             if (shouldStartMinimized)
             {
-                mainWindow.WindowState = WindowState.Minimized;
-                mainWindow.Show();
-            }
-            else
-            {
-                mainWindow.Show();
+                var minimizeToTray = configService?.CurrentSettings.MinimizeToTray == true;
+                
+                // Apply minimize state after window is fully shown to ensure tray icon initializes
+                mainWindow.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    mainWindow.WindowState = WindowState.Minimized;
+                    if (minimizeToTray)
+                    {
+                        mainWindow.ApplyStartupMinimizeToTray(true);
+                    }
+                }), System.Windows.Threading.DispatcherPriority.Loaded);
             }
         }
     }
