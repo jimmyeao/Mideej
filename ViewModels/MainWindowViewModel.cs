@@ -1754,9 +1754,60 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         // Otherwise, use channels' intended assignments to relink dynamically
+        // First collect all intended session assignments (even if not yet matched) to know what's claimed
+        var claimedSessions = new HashSet<string>();
+        var claimedProcesses = new HashSet<int>();
+        var claimedProcessNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        
+        foreach (var ch in Channels)
+        {
+            foreach (var intent in ch.IntendedAssignments)
+            {
+                // Skip special markers
+                if (intent.SessionId == "unmapped_apps" || intent.SessionId == "focused_app")
+                    continue;
+                    
+                // Claim by exact session ID
+                if (!string.IsNullOrEmpty(intent.SessionId))
+                    claimedSessions.Add(intent.SessionId);
+                    
+                // Claim by process ID
+                if (intent.ProcessId.HasValue)
+                    claimedProcesses.Add(intent.ProcessId.Value);
+                    
+                // Claim by process name
+                if (!string.IsNullOrWhiteSpace(intent.ProcessName))
+                    claimedProcessNames.Add(intent.ProcessName);
+            }
+        }
+
+        // Now relink each channel
         foreach (var channel in Channels)
         {
             channel.RelinkFromIntended(AvailableSessions);
+            
+            // Handle special "unmapped_apps" marker
+            if (channel.IntendedAssignments.Any(r => r.SessionId == "unmapped_apps"))
+            {
+                // Add all application sessions that aren't claimed by any other channel
+                var unmappedApps = AvailableSessions
+                    .Where(s => s.SessionType == AudioSessionType.Application && 
+                               !claimedSessions.Contains(s.SessionId) &&
+                               !claimedProcesses.Contains(s.ProcessId) &&
+                               !claimedProcessNames.Contains(s.ProcessName ?? "") &&
+                               !channel.AssignedSessions.Any(existing => existing.SessionId == s.SessionId))
+                    .ToList();
+                
+                foreach (var app in unmappedApps)
+                {
+                    channel.AssignedSessions.Add(app);
+                }
+                
+                Console.WriteLine($"Added {unmappedApps.Count} unmapped applications to {channel.Name}");
+            }
+            
+            // TODO: Handle special "focused_app" marker (requires active window tracking)
+            
             Console.WriteLine($"Relinked {channel.AssignedSessions.Count} sessions to {channel.Name} (dynamic refresh)");
             
             // Sync initial state from audio session to UI
