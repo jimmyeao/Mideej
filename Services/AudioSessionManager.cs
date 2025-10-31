@@ -30,9 +30,14 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     private Dispatcher? _meterDispatcher;
     private DispatcherTimer? _bgVuTimer;
 
-    private System.Timers.Timer? _sessionRefreshTimer;
+    // Session refresh on dedicated STA thread
+    private Thread? _refreshThread;
+    private Dispatcher? _refreshDispatcher;
+    private DispatcherTimer? _refreshTimer;
     private volatile bool _scanInProgress;
     private bool _isMonitoring;
+    private DateTime _lastMeterTick = DateTime.UtcNow;
+    private const int MeterWatchdogSeconds = 10;
     private int _vuMeterInterval = 20; // default faster for responsiveness
     private DateTime _lastDeviceRefresh = DateTime.MinValue;
     private const int SessionRefreshIntervalMs = 1500; // separate background refresh
@@ -223,46 +228,89 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         // Add global exception handler for unhandled exceptions in background threads
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
 
-        try
+        _isMonitoring = true;
+
+        // Start dedicated refresh thread and meter thread
+        // COM objects will be initialized on the refresh thread
+        StartRefreshThread();
+        StartMeterThread();
+    }
+
+    private void StartRefreshThread()
+    {
+        // Stop if running
+        StopRefreshThread();
+
+        _refreshThread = new Thread(() =>
         {
-            _deviceEnumerator = new MMDeviceEnumerator();
-            _defaultDevice = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-
-            _sessionManager = _defaultDevice.AudioSessionManager;
-
-            // Subscribe to endpoint notifications (device add/remove/default change)
-            _deviceNotificationClient = new DeviceNotificationClient(this);
-            _deviceEnumerator.RegisterEndpointNotificationCallback(_deviceNotificationClient);
-
-            // Subscribe to master volume change notifications
-            if (_defaultDevice != null)
+            try
             {
-                _defaultDevice.AudioEndpointVolume.OnVolumeNotification += OnMasterVolumeChanged;
-            }
+                // Initialize COM objects on this STA thread
+                _deviceEnumerator = new MMDeviceEnumerator();
+                _defaultDevice = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                _sessionManager = _defaultDevice.AudioSessionManager;
 
-            UpdateDeviceCaches(force: true);
-            RefreshSessions();
+                // Subscribe to endpoint notifications
+                _deviceNotificationClient = new DeviceNotificationClient(this);
+                _deviceEnumerator.RegisterEndpointNotificationCallback(_deviceNotificationClient);
 
-            // Start background session refresh timer to avoid UI lag; run on UI dispatcher
-            _sessionRefreshTimer = new System.Timers.Timer(SessionRefreshIntervalMs) { AutoReset = true, Enabled = true };
-            _sessionRefreshTimer.Elapsed += (_, __) =>
-            {
-                DispatcherHelper.RunOnUIThread(() =>
+                // Subscribe to master volume change notifications
+                if (_defaultDevice != null)
+                {
+                    _defaultDevice.AudioEndpointVolume.OnVolumeNotification += OnMasterVolumeChanged;
+                }
+
+                // Initial device and session scan
+                UpdateDeviceCaches(force: true);
+                RefreshSessions();
+
+                // Set up dispatcher and timer
+                SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
+                _refreshDispatcher = Dispatcher.CurrentDispatcher;
+                _refreshTimer = new DispatcherTimer(DispatcherPriority.Background, _refreshDispatcher)
+                {
+                    Interval = TimeSpan.FromMilliseconds(SessionRefreshIntervalMs)
+                };
+                _refreshTimer.Tick += (s, e) =>
                 {
                     if (_scanInProgress) return;
                     _scanInProgress = true;
                     try { RefreshSessions(); } finally { _scanInProgress = false; }
-                });
-            };
-
-            // Start meter thread
-            StartMeterThread();
-
-            _isMonitoring = true;
-        }
-        catch (Exception ex)
+                };
+                _refreshTimer.Start();
+                Dispatcher.Run();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Refresh thread error: {ex.Message}");
+            }
+        })
         {
-            Console.WriteLine($"Error starting audio session monitoring: {ex.Message}");
+            IsBackground = true
+        };
+        _refreshThread.SetApartmentState(ApartmentState.STA);
+        _refreshThread.Start();
+    }
+
+    private void StopRefreshThread()
+    {
+        try
+        {
+            if (_refreshDispatcher != null)
+            {
+                _refreshDispatcher.Invoke(() =>
+                {
+                    try { _refreshTimer?.Stop(); } catch { }
+                    _refreshTimer = null;
+                });
+                _refreshDispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
+            }
+        }
+        catch { }
+        finally
+        {
+            _refreshDispatcher = null;
+            _refreshThread = null;
         }
     }
 
@@ -337,13 +385,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         try
         {
             StopMeterThread();
-
-            if (_sessionRefreshTimer != null)
-            {
-                try { _sessionRefreshTimer.Stop(); } catch { }
-                try { _sessionRefreshTimer.Dispose(); } catch { }
-                _sessionRefreshTimer = null;
-            }
+            StopRefreshThread();
 
             // Unregister endpoint notifications
             try
@@ -540,7 +582,10 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         try
         {
             if (_deviceEnumerator == null || !_isMonitoring)
+            {
+                Console.WriteLine($"[RefreshSessions] Skipped: _deviceEnumerator={_deviceEnumerator != null}, _isMonitoring={_isMonitoring}");
                 return;
+            }
 
             // refresh device caches at most every few seconds
             var nowUtc = DateTime.UtcNow;
@@ -552,6 +597,8 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             var currentSessionIds = new HashSet<string>();
             var newSessions = new List<string>();
             var removedSessions = new List<string>();
+
+            Console.WriteLine($"[RefreshSessions] Starting scan. Output devices: {_outputDevices.Count}");
 
             // Enumerate sessions on all active render devices
             foreach (var devKvp in _outputDevices)
@@ -578,6 +625,8 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                     continue;
                 }
 
+                Console.WriteLine($"[RefreshSessions] Device {deviceId} has {sessionsOnDevice.Count} sessions");
+
                 for (int i = 0; i < sessionsOnDevice.Count; i++)
                 {
                     try
@@ -593,6 +642,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         string identifier = SafeGetIdentifier(session, i);
                         var sessionKey = string.Concat(deviceId, "|", processId.ToString(), "_", identifier);
                         currentSessionIds.Add(sessionKey);
+                        Console.WriteLine($"[RefreshSessions] Found session: {sessionKey}");
 
                         if (_sessions.ContainsKey(sessionKey))
                         {
@@ -789,6 +839,9 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         if (!_isMonitoring)
             return;
 
+        // Update watchdog heartbeat
+        _lastMeterTick = DateTime.UtcNow;
+
         // If we've had too many consecutive errors, slow down the meter rate
         if (_meterErrorCount > MaxConsecutiveErrors)
         {
@@ -866,10 +919,9 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         _peakLevelsBuffer[kvp.Key] = meterInfo.MasterPeakValue;
                     }
                 } 
-                catch (InvalidCastException ex) 
+                catch (InvalidCastException) 
                 { 
-                    Console.WriteLine($"[MeterTimer] InvalidCastException on input device {kvp.Key}: {ex.Message}");
-                    _inputDevices.TryRemove(kvp.Key, out _);
+                    // COM object being refreshed - silently skip this tick
                 }
                 catch (COMException ex) 
                 { 
@@ -893,10 +945,9 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         _peakLevelsBuffer[kvp.Key] = meterInfo.MasterPeakValue;
                     }
                 } 
-                catch (InvalidCastException ex) 
+                catch (InvalidCastException) 
                 { 
-                    Console.WriteLine($"[MeterTimer] InvalidCastException on output device {kvp.Key}: {ex.Message}");
-                    _outputDevices.TryRemove(kvp.Key, out _);
+                    // COM object being refreshed - silently skip this tick
                 }
                 catch (COMException ex) 
                 { 
@@ -922,11 +973,9 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         _peakLevelsBuffer[kvp.Key] = peak;
                     }
                 }
-                catch (InvalidCastException ex) 
+                catch (InvalidCastException) 
                 { 
-                    Console.WriteLine($"[MeterTimer] InvalidCastException on session {kvp.Key}: {ex.Message}");
-                    // Mark for removal
-                    kvp.Value.LastSeen = DateTime.UtcNow.AddMilliseconds(-(SessionGraceRemovalMs + 100));
+                    // COM object being refreshed - silently skip this tick
                 }
                 catch (COMException ex) 
                 { 

@@ -1155,6 +1155,10 @@ public partial class MainWindowViewModel : ViewModelBase
         Console.WriteLine($"Created fader mapping: MIDI CH{midiChannel} -> {channel.Name}");
     }
 
+    private readonly Dictionary<int, System.Timers.Timer> _faderDebounceTimers = new();
+    private readonly Dictionary<int, (ChannelViewModel channel, int pitchBendValue)> _pendingFaderUpdates = new();
+    private const int FaderDebounceMs = 30; // Batch audio updates every 30ms
+
     private void ApplyMidiFader(int midiChannel, int pitchBendValue)
     {
         var key = (midiChannel, -1); // Look for pitch bend mapping
@@ -1173,12 +1177,30 @@ public partial class MainWindowViewModel : ViewModelBase
 
         // Convert pitch bend value (0-16383) to volume (0.0-1.0)
         float volume = pitchBendValue / 16383f;
-        channel.Volume = volume;
+        channel.Volume = volume; // Update UI immediately
 
-        // Apply to audio sessions
-        ApplyVolumeToSessions(channel);
+        // Store pending update and debounce audio session writes
+        _pendingFaderUpdates[midiChannel] = (channel, pitchBendValue);
 
-        // Send feedback to motorized fader
+        if (!_faderDebounceTimers.TryGetValue(midiChannel, out var timer))
+        {
+            timer = new System.Timers.Timer(FaderDebounceMs);
+            timer.AutoReset = false;
+            timer.Elapsed += (s, e) =>
+            {
+                if (_pendingFaderUpdates.TryGetValue(midiChannel, out var pending))
+                {
+                    // Apply batched update to audio sessions
+                    ApplyVolumeToSessions(pending.channel);
+                }
+            };
+            _faderDebounceTimers[midiChannel] = timer;
+        }
+
+        timer.Stop();
+        timer.Start();
+
+        // Send feedback to motorized fader immediately
         _midiService?.SendPitchBend(midiChannel, pitchBendValue);
     }
 
