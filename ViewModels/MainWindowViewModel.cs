@@ -1212,6 +1212,8 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        Console.WriteLine($"[ApplyMidiNote] Received note - Ch{midiChannel} Note{noteNumber} -> ControlType: {mapping.ControlType}, TargetChannel: {mapping.TargetChannelIndex}");
+
         if (mapping.TargetChannelIndex == -1)
         {
             // Global transport buttons handled centrally (LED feedback included)
@@ -1245,11 +1247,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 break;
 
             case MidiControlType.Record:
-                channel.ToggleRecord();
-                // Send LED feedback
-                _midiService?.SendNoteOn(midiChannel, noteNumber, channel.IsRecording ? 127 : 0);
-                StatusMessage = $"{channel.Name} - Recording: {(channel.IsRecording ? "ON" : "OFF")}";
-                Console.WriteLine($"Record toggled for {channel.Name}: {channel.IsRecording}");
+                // Handle default device switching for input/output devices
+                HandleRecordButtonPress(channel, midiChannel, noteNumber);
                 break;
 
             case MidiControlType.Select:
@@ -1578,7 +1577,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 if (SelectedMidiDevice != null)
                 {
                     await ConnectMidiDevice();
-                    // TODO: Initialize Record LEDs for default devices after implementing device switching
+                    // Initialize Record LEDs for default devices
+                    InitializeDefaultDeviceRecordLeds();
                 }
             }
 
@@ -1754,6 +1754,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
         // Always relink channel sessions on session changes
         RelinkChannelSessions();
+
+        // Update Record LEDs for default devices after relinking
+        if (IsMidiConnected)
+        {
+            InitializeDefaultDeviceRecordLeds();
+        }
     }
 
     private void OnPeakLevelsUpdated(object? sender, PeakLevelEventArgs e)
@@ -2109,6 +2115,202 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             Console.WriteLine($"ResolveStartupTargetPath exe probe failed: {ex.Message}");
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Handles Record button press for switching default audio devices
+    /// </summary>
+    private void HandleRecordButtonPress(ChannelViewModel channel, int midiChannel, int noteNumber)
+    {
+        Console.WriteLine($"[HandleRecordButtonPress] Called for {channel.Name}");
+
+        if (_audioSessionManager == null)
+        {
+            Console.WriteLine($"[HandleRecordButtonPress] AudioSessionManager is null!");
+            return;
+        }
+
+        // Check if this channel has any assigned sessions
+        if (channel.AssignedSessions.Count == 0)
+        {
+            StatusMessage = $"{channel.Name} - No device assigned";
+            Console.WriteLine($"[HandleRecordButtonPress] {channel.Name} has no sessions assigned");
+            return;
+        }
+
+        // Get the first session to check its type
+        var session = channel.AssignedSessions[0];
+        Console.WriteLine($"[HandleRecordButtonPress] {channel.Name} - SessionId: {session.SessionId}, Type: {session.SessionType}, DisplayName: {session.DisplayName}");
+
+        // Ignore Record button on application sessions
+        if (session.SessionType == AudioSessionType.Application ||
+            session.SessionType == AudioSessionType.SystemSounds)
+        {
+            Console.WriteLine($"[HandleRecordButtonPress] Ignored - application/system session: {channel.Name}");
+            return;
+        }
+
+        // Handle output device switching
+        if (session.SessionType == AudioSessionType.Output && session.SessionId.StartsWith("output_"))
+        {
+            Console.WriteLine($"[HandleRecordButtonPress] Handling output device switch for {session.DisplayName}");
+
+            // Get the current default output device
+            var currentDefaultOutputId = _audioSessionManager.GetDefaultPlaybackDeviceId();
+            Console.WriteLine($"[HandleRecordButtonPress] Current default output: {currentDefaultOutputId}");
+
+            // If this device is already the default, provide feedback
+            if (session.SessionId == currentDefaultOutputId)
+            {
+                Console.WriteLine($"[HandleRecordButtonPress] Device {session.DisplayName} is already the default output");
+                StatusMessage = $"{session.DisplayName} is already default output";
+                // Still send LED feedback to confirm it's the default
+                SendRecordLedFeedback(channel, true);
+                return;
+            }
+
+            // Switch default output device
+            Console.WriteLine($"[HandleRecordButtonPress] Attempting to switch default output to: {session.SessionId}");
+            if (_audioSessionManager.SetDefaultPlaybackDevice(session.SessionId))
+            {
+                // Turn off Record LED on the old default channel (if any)
+                if (currentDefaultOutputId != null)
+                {
+                    var oldDefaultChannel = Channels.FirstOrDefault(ch =>
+                        ch.AssignedSessions.Any(s => s.SessionId == currentDefaultOutputId));
+                    if (oldDefaultChannel != null)
+                    {
+                        SendRecordLedFeedback(oldDefaultChannel, false);
+                    }
+                }
+
+                // Turn on Record LED on the new default channel
+                SendRecordLedFeedback(channel, true);
+
+                StatusMessage = $"Default output: {session.DisplayName}";
+                Console.WriteLine($"Switched default output to: {session.DisplayName}");
+            }
+            else
+            {
+                StatusMessage = $"Failed to set default output";
+                Console.WriteLine($"Failed to switch default output to: {session.DisplayName}");
+            }
+        }
+        // Handle input device switching
+        else if (session.SessionType == AudioSessionType.Input && session.SessionId.StartsWith("input_"))
+        {
+            Console.WriteLine($"[HandleRecordButtonPress] Handling input device switch for {session.DisplayName}");
+
+            // Get the current default input device
+            var currentDefaultInputId = _audioSessionManager.GetDefaultRecordingDeviceId();
+            Console.WriteLine($"[HandleRecordButtonPress] Current default input: {currentDefaultInputId}");
+
+            // If this device is already the default, provide feedback
+            if (session.SessionId == currentDefaultInputId)
+            {
+                Console.WriteLine($"[HandleRecordButtonPress] Device {session.DisplayName} is already the default input");
+                StatusMessage = $"{session.DisplayName} is already default input";
+                // Still send LED feedback to confirm it's the default
+                SendRecordLedFeedback(channel, true);
+                return;
+            }
+
+            // Switch default input device
+            Console.WriteLine($"[HandleRecordButtonPress] Attempting to switch default input to: {session.SessionId}");
+            if (_audioSessionManager.SetDefaultRecordingDevice(session.SessionId))
+            {
+                // Turn off Record LED on the old default channel (if any)
+                if (currentDefaultInputId != null)
+                {
+                    var oldDefaultChannel = Channels.FirstOrDefault(ch =>
+                        ch.AssignedSessions.Any(s => s.SessionId == currentDefaultInputId));
+                    if (oldDefaultChannel != null)
+                    {
+                        SendRecordLedFeedback(oldDefaultChannel, false);
+                    }
+                }
+
+                // Turn on Record LED on the new default channel
+                SendRecordLedFeedback(channel, true);
+
+                StatusMessage = $"Default input: {session.DisplayName}";
+                Console.WriteLine($"Switched default input to: {session.DisplayName}");
+            }
+            else
+            {
+                StatusMessage = $"Failed to set default input";
+                Console.WriteLine($"Failed to switch default input to: {session.DisplayName}");
+            }
+        }
+        else
+        {
+            // Unexpected session type or ID format
+            Console.WriteLine($"[HandleRecordButtonPress] Unexpected session - Type: {session.SessionType}, SessionId: {session.SessionId}");
+            StatusMessage = $"{channel.Name} - Cannot switch (invalid session type)";
+        }
+    }
+
+    /// <summary>
+    /// Sends LED feedback to MIDI controller for record button state
+    /// </summary>
+    private void SendRecordLedFeedback(ChannelViewModel channel, bool isOn)
+    {
+        if (_midiService == null) return;
+
+        // Find the MIDI mapping for this channel's record button
+        foreach (var kvp in _midiMappings)
+        {
+            var mapping = kvp.Value;
+            if (mapping.TargetChannelIndex == channel.Index && mapping.ControlType == MidiControlType.Record)
+            {
+                // Send LED feedback (on=127, off=0)
+                _midiService.SendNoteOn(mapping.Channel, mapping.ControlNumber, isOn ? 127 : 0);
+                Console.WriteLine($"Record LED feedback sent for {channel.Name}: {(isOn ? "ON" : "OFF")}");
+                break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Initializes Record LEDs for channels with default devices on startup
+    /// </summary>
+    private void InitializeDefaultDeviceRecordLeds()
+    {
+        if (_audioSessionManager == null)
+            return;
+
+        try
+        {
+            // Get default playback device
+            var defaultOutputId = _audioSessionManager.GetDefaultPlaybackDeviceId();
+            if (defaultOutputId != null)
+            {
+                var outputChannel = Channels.FirstOrDefault(ch =>
+                    ch.AssignedSessions.Any(s => s.SessionId == defaultOutputId));
+                if (outputChannel != null)
+                {
+                    SendRecordLedFeedback(outputChannel, true);
+                    Console.WriteLine($"Lit Record LED for default output: {outputChannel.Name}");
+                }
+            }
+
+            // Get default recording device
+            var defaultInputId = _audioSessionManager.GetDefaultRecordingDeviceId();
+            if (defaultInputId != null)
+            {
+                var inputChannel = Channels.FirstOrDefault(ch =>
+                    ch.AssignedSessions.Any(s => s.SessionId == defaultInputId));
+                if (inputChannel != null)
+                {
+                    SendRecordLedFeedback(inputChannel, true);
+                    Console.WriteLine($"Lit Record LED for default input: {inputChannel.Name}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error initializing default device Record LEDs: {ex.Message}");
         }
     }
 

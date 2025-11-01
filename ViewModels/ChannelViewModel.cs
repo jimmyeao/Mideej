@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mideej.Models;
@@ -303,32 +304,59 @@ public partial class ChannelViewModel : ViewModelBase
         {
             AudioSessionInfo? match = null;
 
-            // 1. Exact id
-            if (!string.IsNullOrEmpty(r.SessionId))
+            // Special handling for devices (input/output) - match by endpoint ID FIRST
+            if (r.SessionType == AudioSessionType.Input || r.SessionType == AudioSessionType.Output)
             {
-                match = availableSessions.FirstOrDefault(s => s.SessionId == r.SessionId);
+                // 1. Try endpoint ID match
+                if (!string.IsNullOrEmpty(r.DeviceEndpointId))
+                {
+                    var expectedInput = $"input_{r.DeviceEndpointId}";
+                    var expectedOutput = $"output_{r.DeviceEndpointId}";
+                    match = availableSessions.FirstOrDefault(s => s.SessionId == expectedInput || s.SessionId == expectedOutput);
+                }
+
+                // 2. Fall back to exact SessionId
+                if (match == null && !string.IsNullOrEmpty(r.SessionId))
+                {
+                    match = availableSessions.FirstOrDefault(s => s.SessionId == r.SessionId);
+                }
+
+                // 3. Fall back to display name match (for renamed devices)
+                if (match == null && !string.IsNullOrWhiteSpace(r.DisplayName))
+                {
+                    match = availableSessions.FirstOrDefault(s =>
+                        s.SessionType == r.SessionType &&
+                        string.Equals(s.DisplayName, r.DisplayName, StringComparison.OrdinalIgnoreCase));
+                }
             }
-            // 2. Endpoint id
-            if (match == null && !string.IsNullOrEmpty(r.DeviceEndpointId))
+            else // Application sessions - use fuzzy matching like DeejNG
             {
-                var expectedInput = $"input_{r.DeviceEndpointId}";
-                var expectedOutput = $"output_{r.DeviceEndpointId}";
-                match = availableSessions.FirstOrDefault(s => s.SessionId == expectedInput || s.SessionId == expectedOutput);
-            }
-            // 3. ProcessId + type
-            if (match == null && r.ProcessId.HasValue)
-            {
-                match = availableSessions.FirstOrDefault(s => s.ProcessId == r.ProcessId && (!r.SessionType.HasValue || s.SessionType == r.SessionType.Value));
-            }
-            // 4. ProcessName + type
-            if (match == null && !string.IsNullOrWhiteSpace(r.ProcessName))
-            {
-                match = availableSessions.FirstOrDefault(s => string.Equals(s.ProcessName, r.ProcessName, StringComparison.OrdinalIgnoreCase) && (!r.SessionType.HasValue || s.SessionType == r.SessionType.Value));
-            }
-            // 5. DisplayName + type
-            if (match == null && !string.IsNullOrWhiteSpace(r.DisplayName))
-            {
-                match = availableSessions.FirstOrDefault(s => string.Equals(s.DisplayName, r.DisplayName, StringComparison.OrdinalIgnoreCase) && (!r.SessionType.HasValue || s.SessionType == r.SessionType.Value));
+                // 1. Try ProcessName fuzzy match (primary method, like DeejNG)
+                if (!string.IsNullOrWhiteSpace(r.ProcessName))
+                {
+                    var cleanedTargetName = Path.GetFileNameWithoutExtension(r.ProcessName).ToLowerInvariant();
+
+                    match = availableSessions.FirstOrDefault(s =>
+                        s.SessionType == AudioSessionType.Application &&
+                        !string.IsNullOrWhiteSpace(s.ProcessName) &&
+                        FuzzyMatchProcessName(s.ProcessName, cleanedTargetName));
+                }
+
+                // 2. Fall back to ProcessId (if process hasn't restarted)
+                if (match == null && r.ProcessId.HasValue)
+                {
+                    match = availableSessions.FirstOrDefault(s =>
+                        s.SessionType == AudioSessionType.Application &&
+                        s.ProcessId == r.ProcessId);
+                }
+
+                // 3. Fall back to DisplayName
+                if (match == null && !string.IsNullOrWhiteSpace(r.DisplayName))
+                {
+                    match = availableSessions.FirstOrDefault(s =>
+                        s.SessionType == AudioSessionType.Application &&
+                        string.Equals(s.DisplayName, r.DisplayName, StringComparison.OrdinalIgnoreCase));
+                }
             }
 
             if (match != null)
@@ -336,6 +364,18 @@ public partial class ChannelViewModel : ViewModelBase
                 AssignedSessions.Add(match);
             }
         }
+    }
+
+    /// <summary>
+    /// Fuzzy process name matching - matches if exact, contains, or is contained (like DeejNG)
+    /// </summary>
+    private bool FuzzyMatchProcessName(string processName, string cleanedTargetName)
+    {
+        var cleanedProcessName = Path.GetFileNameWithoutExtension(processName).ToLowerInvariant();
+
+        return cleanedProcessName.Equals(cleanedTargetName, StringComparison.OrdinalIgnoreCase) ||
+               cleanedProcessName.Contains(cleanedTargetName, StringComparison.OrdinalIgnoreCase) ||
+               cleanedTargetName.Contains(cleanedProcessName, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

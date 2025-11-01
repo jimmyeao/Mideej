@@ -5,7 +5,8 @@
       "Bash(dotnet add:*)",
       "Bash(dotnet build:*)",
       "Bash(dotnet run:*)",
-      "WebFetch(domain:private-user-images.githubusercontent.com)"
+      "WebFetch(domain:private-user-images.githubusercontent.com)",
+      "Bash(dir \"C:\\Users\\jimmy\\source\\repos\\DeejNG\" /s /b)"
     ],
     "deny": [],
     "ask": []
