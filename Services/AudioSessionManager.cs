@@ -93,7 +93,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
                     string sessionId = $"app_{processName}_{pid}";
 
-                    // Cache the session reference for VU meter updates
+                    // Cache the session reference for VU meter updates and fast volume/mute changes
                     _cachedAppSessions[sessionId] = session;
 
                     sessions.Add(new AudioSessionInfo
@@ -201,7 +201,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         {
             if (sessionId == "master_output")
             {
-                var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                using var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
                 device.AudioEndpointVolume.MasterVolumeLevelScalar = volume;
                 return;
             }
@@ -210,7 +210,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             if (sessionId.StartsWith("output_"))
             {
                 string deviceId = sessionId.Substring(7); // Remove "output_" prefix
-                var device = _deviceEnumerator.GetDevice(deviceId);
+                using var device = _deviceEnumerator.GetDevice(deviceId);
                 if (device != null)
                 {
                     device.AudioEndpointVolume.MasterVolumeLevelScalar = volume;
@@ -222,12 +222,23 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             if (sessionId.StartsWith("input_"))
             {
                 string deviceId = sessionId.Substring(6); // Remove "input_" prefix
-                var device = _deviceEnumerator.GetDevice(deviceId);
+                using var device = _deviceEnumerator.GetDevice(deviceId);
                 if (device != null)
                 {
                     device.AudioEndpointVolume.MasterVolumeLevelScalar = volume;
                 }
                 return;
+            }
+
+            // Fast path for application sessions: use cached AudioSessionControl if available
+            if (_cachedAppSessions.TryGetValue(sessionId, out var cachedSession))
+            {
+                try
+                {
+                    cachedSession.SimpleAudioVolume.Volume = volume;
+                    return;
+                }
+                catch { /* fall back below if needed */ }
             }
 
             // Extract process name from sessionId (format: app_processname_pid)
@@ -253,7 +264,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         {
             if (sessionId == "master_output")
             {
-                var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                using var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
                 device.AudioEndpointVolume.Mute = isMuted;
                 return;
             }
@@ -262,7 +273,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             if (sessionId.StartsWith("output_"))
             {
                 string deviceId = sessionId.Substring(7);
-                var device = _deviceEnumerator.GetDevice(deviceId);
+                using var device = _deviceEnumerator.GetDevice(deviceId);
                 if (device != null)
                 {
                     device.AudioEndpointVolume.Mute = isMuted;
@@ -274,12 +285,23 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             if (sessionId.StartsWith("input_"))
             {
                 string deviceId = sessionId.Substring(6);
-                var device = _deviceEnumerator.GetDevice(deviceId);
+                using var device = _deviceEnumerator.GetDevice(deviceId);
                 if (device != null)
                 {
                     device.AudioEndpointVolume.Mute = isMuted;
                 }
                 return;
+            }
+
+            // Fast path for application sessions: use cached AudioSessionControl if available
+            if (_cachedAppSessions.TryGetValue(sessionId, out var cachedSession))
+            {
+                try
+                {
+                    cachedSession.SimpleAudioVolume.Mute = isMuted;
+                    return;
+                }
+                catch { /* fall back below if needed */ }
             }
 
             if (sessionId.StartsWith("app_"))
@@ -330,7 +352,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             string targetName = Path.GetFileNameWithoutExtension(executable).ToLowerInvariant();
             if (string.IsNullOrEmpty(targetName)) return;
 
-            var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            using var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
             var sessions = device.AudioSessionManager.Sessions;
 
             for (int i = 0; i < sessions.Count; i++)
@@ -367,7 +389,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             string targetName = Path.GetFileNameWithoutExtension(executable).ToLowerInvariant();
             if (string.IsNullOrEmpty(targetName)) return;
 
-            var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            using var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
             var sessions = device.AudioSessionManager.Sessions;
 
             for (int i = 0; i < sessions.Count; i++)
@@ -400,7 +422,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             string targetName = Path.GetFileNameWithoutExtension(executable).ToLowerInvariant();
             if (string.IsNullOrEmpty(targetName)) return 0f;
 
-            var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            using var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
             var sessions = device.AudioSessionManager.Sessions;
 
             for (int i = 0; i < sessions.Count; i++)
