@@ -1683,26 +1683,28 @@ public partial class MainWindowViewModel : ViewModelBase
         StatusMessage = e.IsConnected ? $"Connected to {e.Device.Name}" : "MIDI device disconnected";
     }
 
-    private void OnPlaybackStateChanged(Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus status)
+    private void OnMasterMuteChanged(object? sender, MasterMuteChangedEventArgs e)
     {
-        // Update internal state and LEDs based on Windows media playback state
-        _isPlaying = status == Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
-        
-        StatusMessage = status switch
+        // Ensure we run UI updates on the UI thread
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
         {
-            Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing => "Media: Playing",
-            Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused => "Media: Paused",
-            Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Stopped => "Media: Stopped",
-            _ => StatusMessage
-        };
-        
-        // Update LEDs to reflect current state
-        UpdatePlayPauseLeds();
-        
-        Console.WriteLine($"Playback state changed: {status} (isPlaying={_isPlaying})");
+            // Fallback: run inline
+            HandleMasterMuteChanged(e);
+            return;
+        }
+
+        if (dispatcher.CheckAccess())
+        {
+            HandleMasterMuteChanged(e);
+        }
+        else
+        {
+            dispatcher.BeginInvoke(new Action(() => HandleMasterMuteChanged(e)));
+        }
     }
 
-    private void OnMasterMuteChanged(object? sender, MasterMuteChangedEventArgs e)
+    private void HandleMasterMuteChanged(MasterMuteChangedEventArgs e)
     {
         // Find the channel assigned to master_output and update its state
         var masterChannel = Channels.FirstOrDefault(ch => 
@@ -1724,6 +1726,26 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void OnAudioSessionsChanged(object? sender, AudioSessionChangedEventArgs e)
     {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            // No dispatcher available - update inline
+            UpdateAvailableSessionsAndRelink(e);
+            return;
+        }
+
+        if (dispatcher.CheckAccess())
+        {
+            UpdateAvailableSessionsAndRelink(e);
+        }
+        else
+        {
+            dispatcher.BeginInvoke(new Action(() => UpdateAvailableSessionsAndRelink(e)));
+        }
+    }
+
+    private void UpdateAvailableSessionsAndRelink(AudioSessionChangedEventArgs e)
+    {
         AvailableSessions.Clear();
         foreach (var session in e.Sessions)
         {
@@ -1734,103 +1756,26 @@ public partial class MainWindowViewModel : ViewModelBase
         RelinkChannelSessions();
     }
 
-    /// <summary>
-    /// Relinks channel sessions from saved configuration to actual audio session objects
-    /// </summary>
-    private void RelinkChannelSessions()
+    private void OnPeakLevelsUpdated(object? sender, PeakLevelEventArgs e)
     {
-        if (_pendingChannelConfigs.Count > 0)
+        var dispatcher = Application.Current?.Dispatcher;
+        if ( dispatcher == null)
         {
-            for (int i = 0; i < Channels.Count && i < _pendingChannelConfigs.Count; i++)
-            {
-                var channel = Channels[i];
-                var config = _pendingChannelConfigs[i];
-
-                channel.RelinkSessions(config, AvailableSessions);
-                Console.WriteLine($"Relinked {channel.AssignedSessions.Count} sessions to {channel.Name} (from pending config)");
-            }
-
-            _pendingChannelConfigs.Clear();
+            UpdatePeakLevels(e);
             return;
         }
 
-        // Otherwise, use channels' intended assignments to relink dynamically
-        // First collect all intended session assignments (even if not yet matched) to know what's claimed
-        var claimedSessions = new HashSet<string>();
-        var claimedProcesses = new HashSet<int>();
-        var claimedProcessNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        
-        foreach (var ch in Channels)
+        if (dispatcher.CheckAccess())
         {
-            foreach (var intent in ch.IntendedAssignments)
-            {
-                // Skip special markers
-                if (intent.SessionId == "unmapped_apps" || intent.SessionId == "focused_app")
-                    continue;
-                    
-                // Claim by exact session ID
-                if (!string.IsNullOrEmpty(intent.SessionId))
-                    claimedSessions.Add(intent.SessionId);
-                    
-                // Claim by process ID
-                if (intent.ProcessId.HasValue)
-                    claimedProcesses.Add(intent.ProcessId.Value);
-                    
-                // Claim by process name
-                if (!string.IsNullOrWhiteSpace(intent.ProcessName))
-                    claimedProcessNames.Add(intent.ProcessName);
-            }
+            UpdatePeakLevels(e);
         }
-
-        // Now relink each channel
-        foreach (var channel in Channels)
+        else
         {
-            channel.RelinkFromIntended(AvailableSessions);
-            
-            // Handle special "unmapped_apps" marker
-            if (channel.IntendedAssignments.Any(r => r.SessionId == "unmapped_apps"))
-            {
-                // Add all application sessions that aren't claimed by any other channel
-                var unmappedApps = AvailableSessions
-                    .Where(s => s.SessionType == AudioSessionType.Application && 
-                               !claimedSessions.Contains(s.SessionId) &&
-                               !claimedProcesses.Contains(s.ProcessId) &&
-                               !claimedProcessNames.Contains(s.ProcessName ?? "") &&
-                               !channel.AssignedSessions.Any(existing => existing.SessionId == s.SessionId))
-                    .ToList();
-                
-                foreach (var app in unmappedApps)
-                {
-                    channel.AssignedSessions.Add(app);
-                }
-                
-                Console.WriteLine($"Added {unmappedApps.Count} unmapped applications to {channel.Name}");
-            }
-            
-            // TODO: Handle special "focused_app" marker (requires active window tracking)
-            
-            Console.WriteLine($"Relinked {channel.AssignedSessions.Count} sessions to {channel.Name} (dynamic refresh)");
-            
-            // Sync initial state from audio session to UI
-            SyncChannelStateFromSession(channel);
-        }
-    }
-    
-    /// <summary>
-    /// Syncs the channel's UI state with the actual audio session state
-    /// </summary>
-    private void SyncChannelStateFromSession(ChannelViewModel channel)
-    {
-        // Find master_output session and sync its mute state
-        var masterSession = channel.AssignedSessions.FirstOrDefault(s => s.SessionId == "master_output");
-        if (masterSession != null)
-        {
-            channel.IsMuted = masterSession.IsMuted;
-            Console.WriteLine($"Synced {channel.Name} mute state: {masterSession.IsMuted}");
+            dispatcher.BeginInvoke(new Action(() => UpdatePeakLevels(e)));
         }
     }
 
-    private void OnPeakLevelsUpdated(object? sender, PeakLevelEventArgs e)
+    private void UpdatePeakLevels(PeakLevelEventArgs e)
     {
         // Update VU meters
         foreach (var channel in Channels)
@@ -1845,6 +1790,45 @@ public partial class MainWindowViewModel : ViewModelBase
             }
             channel.PeakLevel = maxPeak;
         }
+    }
+
+    private void OnPlaybackStateChanged(Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus status)
+    {
+        // Ensure UI updates happen on UI thread
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            HandlePlaybackStateChanged(status);
+            return;
+        }
+
+        if (dispatcher.CheckAccess())
+        {
+            HandlePlaybackStateChanged(status);
+        }
+        else
+        {
+            dispatcher.BeginInvoke(new Action(() => HandlePlaybackStateChanged(status)));
+        }
+    }
+
+    private void HandlePlaybackStateChanged(Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus status)
+    {
+        // Update internal state and LEDs based on Windows media playback state
+        _isPlaying = status == Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+        
+        StatusMessage = status switch
+        {
+            Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing => "Media: Playing",
+            Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused => "Media: Paused",
+            Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Stopped => "Media: Stopped",
+            _ => StatusMessage
+        };
+        
+        // Update LEDs to reflect current state
+        UpdatePlayPauseLeds();
+        
+        Console.WriteLine($"Playback state changed: {status} (isPlaying={_isPlaying})");
     }
 
     private void CreateMapping(int midiChannel, int controller, ChannelViewModel channel)
@@ -2125,6 +2109,102 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             Console.WriteLine($"ResolveStartupTargetPath exe probe failed: {ex.Message}");
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Relinks channel sessions from saved configuration to actual audio session objects
+    /// </summary>
+    private void RelinkChannelSessions()
+    {
+        if (_pendingChannelConfigs.Count > 0)
+        {
+            for (int i = 0; i < Channels.Count && i < _pendingChannelConfigs.Count; i++)
+            {
+                var channel = Channels[i];
+                var config = _pendingChannelConfigs[i];
+
+                channel.RelinkSessions(config, AvailableSessions);
+                Console.WriteLine($"Relinked {channel.AssignedSessions.Count} sessions to {channel.Name} (from pending config)");
+            }
+
+            _pendingChannelConfigs.Clear();
+            return;
+        }
+
+        // Otherwise, use channels' intended assignments to relink dynamically
+        // First collect all intended session assignments (even if not yet matched) to know what's claimed
+        var claimedSessions = new HashSet<string>();
+        var claimedProcesses = new HashSet<int>();
+        var claimedProcessNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        
+        foreach (var ch in Channels)
+        {
+            foreach (var intent in ch.IntendedAssignments)
+            {
+                // Skip special markers
+                if (intent.SessionId == "unmapped_apps" || intent.SessionId == "focused_app")
+                    continue;
+                    
+                // Claim by exact session ID
+                if (!string.IsNullOrEmpty(intent.SessionId))
+                    claimedSessions.Add(intent.SessionId);
+                    
+                // Claim by process ID
+                if (intent.ProcessId.HasValue)
+                    claimedProcesses.Add(intent.ProcessId.Value);
+                    
+                // Claim by process name
+                if (!string.IsNullOrWhiteSpace(intent.ProcessName))
+                    claimedProcessNames.Add(intent.ProcessName);
+            }
+        }
+
+        // Now relink each channel
+        foreach (var channel in Channels)
+        {
+            channel.RelinkFromIntended(AvailableSessions);
+            
+            // Handle special "unmapped_apps" marker
+            if (channel.IntendedAssignments.Any(r => r.SessionId == "unmapped_apps"))
+            {
+                // Add all application sessions that aren't claimed by any other channel
+                var unmappedApps = AvailableSessions
+                    .Where(s => s.SessionType == AudioSessionType.Application && 
+                               !claimedSessions.Contains(s.SessionId) &&
+                               !claimedProcesses.Contains(s.ProcessId) &&
+                               !claimedProcessNames.Contains(s.ProcessName ?? "") &&
+                               !channel.AssignedSessions.Any(existing => existing.SessionId == s.SessionId))
+                    .ToList();
+                
+                foreach (var app in unmappedApps)
+                {
+                    channel.AssignedSessions.Add(app);
+                }
+                
+                Console.WriteLine($"Added {unmappedApps.Count} unmapped applications to {channel.Name}");
+            }
+            
+            // TODO: Handle special "focused_app" marker (requires active window tracking)
+            
+            Console.WriteLine($"Relinked {channel.AssignedSessions.Count} sessions to {channel.Name} (dynamic refresh)");
+            
+            // Sync initial state from audio session to UI
+            SyncChannelStateFromSession(channel);
+        }
+    }
+
+    /// <summary>
+    /// Syncs the channel's UI state with the actual audio session state
+    /// </summary>
+    private void SyncChannelStateFromSession(ChannelViewModel channel)
+    {
+        // Find master_output session and sync its mute state
+        var masterSession = channel.AssignedSessions.FirstOrDefault(s => s.SessionId == "master_output");
+        if (masterSession != null)
+        {
+            channel.IsMuted = masterSession.IsMuted;
+            Console.WriteLine($"Synced {channel.Name} mute state: {masterSession.IsMuted}");
         }
     }
 }
