@@ -1578,6 +1578,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 if (SelectedMidiDevice != null)
                 {
                     await ConnectMidiDevice();
+                    // TODO: Initialize Record LEDs for default devices after implementing device switching
                 }
             }
 
