@@ -110,7 +110,18 @@ public partial class MainWindowViewModel : ViewModelBase
     new ThemeOption { Name = "SunsetTheme", DisplayName = "Sunset 🌇" },
     new ThemeOption { Name = "CyberpunkTheme", DisplayName = "Cyberpunk 🌈" },
     new ThemeOption { Name = "ForestTheme", DisplayName = "Forest 🌿" },
-    new ThemeOption { Name = "ArcticTheme", DisplayName = "Arctic ❄️" }
+    new ThemeOption { Name = "ArcticTheme", DisplayName = "Arctic ❄️" },
+    // Holiday themes
+    new ThemeOption { Name = "HalloweenTheme", DisplayName = "Halloween 🎃" },
+    new ThemeOption { Name = "ChristmasTheme", DisplayName = "Christmas 🎄" },
+    new ThemeOption { Name = "DiwaliTheme", DisplayName = "Diwali 🪔" },
+    new ThemeOption { Name = "HanukkahTheme", DisplayName = "Hanukkah 🕎" },
+    new ThemeOption { Name = "EidTheme", DisplayName = "Eid 🌙" },
+    new ThemeOption { Name = "LunarNewYearTheme", DisplayName = "Lunar New Year 🧧" },
+    new ThemeOption { Name = "EasterTheme", DisplayName = "Easter 🐣" },
+    new ThemeOption { Name = "NowruzTheme", DisplayName = "Nowruz 🌱" },
+    new ThemeOption { Name = "RamadanTheme", DisplayName = "Ramadan 🌙" },
+    new ThemeOption { Name = "PrideTheme", DisplayName = "Pride 🏳️‍🌈" }
 };
 
     [ObservableProperty]
@@ -919,14 +930,14 @@ public partial class MainWindowViewModel : ViewModelBase
                 // Map CC to Volume only
                 if (ControlTypeToMap == "Volume")
                 {
-                    Console.WriteLine($"  Mapping CC to Volume");
+                    Console.WriteLine($" Mapping CC to Volume");
                     CreateMapping(e.Channel, e.Controller, ChannelAwaitingMapping);
                     CancelMappingMode();
                 }
                 else
                 {
                     StatusMessage = $"Expecting a button press for {ControlTypeToMap}, but received CC message. Try a fader/knob for Volume mapping.";
-                    Console.WriteLine($"  Ignoring CC - expecting {ControlTypeToMap}");
+                    Console.WriteLine($" Ignoring CC - expecting {ControlTypeToMap}");
                 }
             }
             else
