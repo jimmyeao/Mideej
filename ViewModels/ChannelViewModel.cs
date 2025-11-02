@@ -36,6 +36,12 @@ public partial class ChannelViewModel : ViewModelBase
     private float _peakLevel;
 
     [ObservableProperty]
+    private bool _isAudioActive;
+
+    // Timestamp for delayed off behavior
+    private DateTime? _lastAudioActivityTime;
+
+    [ObservableProperty]
     private string _color = "#3B82F6";
 
     [ObservableProperty]
@@ -192,6 +198,38 @@ public partial class ChannelViewModel : ViewModelBase
     public void CycleSession()
     {
         CycleSessionRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Updates audio activity state based on peak level with 500ms delayed off
+    /// </summary>
+    /// <param name="peakLevel">Current peak level (0.0 to 1.0)</param>
+    /// <param name="threshold">Threshold for activity detection (default: 0.001 for very sensitive)</param>
+    public void UpdateAudioActivity(float peakLevel, float threshold = 0.001f)
+    {
+        bool hasAudio = peakLevel > threshold;
+
+        if (hasAudio)
+        {
+            // Immediately turn on
+            _lastAudioActivityTime = DateTime.Now;
+            if (!IsAudioActive)
+            {
+                IsAudioActive = true;
+            }
+        }
+        else
+        {
+            // Check if we should turn off (after 500ms hold)
+            if (IsAudioActive && _lastAudioActivityTime.HasValue)
+            {
+                var timeSinceLastActivity = DateTime.Now - _lastAudioActivityTime.Value;
+                if (timeSinceLastActivity.TotalMilliseconds >= 500)
+                {
+                    IsAudioActive = false;
+                }
+            }
+        }
     }
 
     /// <summary>

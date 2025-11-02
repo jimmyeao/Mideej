@@ -614,12 +614,14 @@ public partial class MainWindowViewModel : ViewModelBase
         channel.SessionAssignmentRequested += OnChannelSessionAssignmentRequested;
         channel.SessionCleared += OnChannelSessionCleared;
         channel.CycleSessionRequested += OnChannelCycleSessionRequested;
+        channel.PropertyChanged += OnChannelPropertyChanged;
     }
 
     private void UnsubscribeFromChannelEvents(ChannelViewModel channel)
     {
         channel.VolumeChanged -= OnChannelVolumeChanged;
         channel.MuteChanged -= OnChannelMuteChanged;
+        channel.PropertyChanged -= OnChannelPropertyChanged;
         channel.SoloChanged -= OnChannelSoloChanged;
         channel.MappingModeRequested -= OnChannelMappingModeRequested;
         channel.SessionAssignmentRequested -= OnChannelSessionAssignmentRequested;
@@ -1252,11 +1254,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 break;
 
             case MidiControlType.Select:
-                channel.ToggleSelect();
-                // Send LED feedback
-                _midiService?.SendNoteOn(midiChannel, noteNumber, channel.IsSelected ? 127 : 0);
-                StatusMessage = $"{channel.Name} - Selected: {(channel.IsSelected ? "ON" : "OFF")}";
-                Console.WriteLine($"Select toggled for {channel.Name}: {channel.IsSelected}");
+                // Select button is now read-only (audio activity indicator)
+                // Ignore button presses from MIDI controller
+                Console.WriteLine($"Select button press ignored for {channel.Name} (read-only audio activity indicator)");
                 break;
 
             case MidiControlType.CycleSession:
@@ -1783,7 +1783,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void UpdatePeakLevels(PeakLevelEventArgs e)
     {
-        // Update VU meters
+        // Update VU meters and audio activity
         foreach (var channel in Channels)
         {
             float maxPeak = 0;
@@ -1795,6 +1795,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
             }
             channel.PeakLevel = maxPeak;
+
+            // Update audio activity indicator with 500ms delayed off
+            channel.UpdateAudioActivity(maxPeak);
         }
     }
 
@@ -2269,6 +2272,40 @@ public partial class MainWindowViewModel : ViewModelBase
                 Console.WriteLine($"Record LED feedback sent for {channel.Name}: {(isOn ? "ON" : "OFF")}");
                 break;
             }
+        }
+    }
+
+    /// <summary>
+    /// Sends LED feedback to MIDI controller for select button (audio activity indicator)
+    /// </summary>
+    private void SendSelectLedFeedback(ChannelViewModel channel, bool isOn)
+    {
+        if (_midiService == null) return;
+
+        // Find the MIDI mapping for this channel's select button
+        foreach (var kvp in _midiMappings)
+        {
+            var mapping = kvp.Value;
+            if (mapping.TargetChannelIndex == channel.Index && mapping.ControlType == MidiControlType.Select)
+            {
+                // Send LED feedback (on=127, off=0)
+                _midiService.SendNoteOn(mapping.Channel, mapping.ControlNumber, isOn ? 127 : 0);
+                break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Handles property changes on channels (primarily for audio activity LED feedback)
+    /// </summary>
+    private void OnChannelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (sender is not ChannelViewModel channel) return;
+
+        // Send LED feedback when audio activity state changes
+        if (e.PropertyName == nameof(ChannelViewModel.IsAudioActive))
+        {
+            SendSelectLedFeedback(channel, channel.IsAudioActive);
         }
     }
 
