@@ -26,6 +26,8 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     private Dictionary<string, MMDevice> _cachedDevices = new();
     private Dictionary<string, AudioSessionControl> _cachedAppSessions = new();
     private Dictionary<string, (WasapiCapture Capture, MMDevice Device)> _inputDeviceCaptures = new();
+    private HashSet<AudioSessionControl> _invalidSessions = new(); // Track sessions that are invalid
+    private int _refreshCount = 0; // Track refresh cycles for periodic cleanup
     
     public event EventHandler<AudioSessionChangedEventArgs>? SessionsChanged;
     public event EventHandler<SessionVolumeChangedEventArgs>? SessionVolumeChanged;
@@ -92,23 +94,41 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
             for (int i = 0; i < audioSessions.Count; i++)
             {
+                AudioSessionControl? session = null;
+                int pid = -1;
+
                 try
                 {
-                    var session = audioSessions[i];
+                    session = audioSessions[i];
                     if (session == null)
                         continue;
 
-                    int pid;
-                    try
-                    {
-                        pid = (int)session.GetProcessID;
-                    }
-                    catch (ArgumentException)
-                    {
-                        // Session is in invalid state, skip it
+                    // Skip sessions we've already identified as invalid
+                    if (_invalidSessions.Contains(session))
                         continue;
-                    }
 
+                    // Try to get PID - this will throw ArgumentException if session is invalid/disconnected
+                    pid = (int)session.GetProcessID;
+                }
+                catch (ArgumentException)
+                {
+                    // Session is in invalid/disconnected state, add to blacklist
+                    if (session != null)
+                        _invalidSessions.Add(session);
+                    continue;
+                }
+                catch (Exception ex)
+                {
+                    // Log unexpected errors only and blacklist
+                    Debug.WriteLine($"[GetActiveSessions] Unexpected error reading session {i}: {ex.GetType().Name} - {ex.Message}");
+                    if (session != null)
+                        _invalidSessions.Add(session);
+                    continue;
+                }
+
+                // Continue processing valid session
+                try
+                {
                     if (_systemProcessIds.Contains(pid) || pid < 100)
                         continue;
 
@@ -123,14 +143,9 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                     {
                         instanceId = session.GetSessionInstanceIdentifier;
                     }
-                    catch (ArgumentException)
+                    catch
                     {
-                        // Session is in invalid state, use index as fallback
-                        instanceId = i.ToString();
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"[GetSessionInstanceIdentifier] Unexpected error for PID {pid} ({processName}): {ex.GetType().Name}");
+                        // Session might be invalid or disconnecting, use index as fallback
                         instanceId = i.ToString();
                     }
 
@@ -151,13 +166,9 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                     {
                         displayName = session.DisplayName;
                     }
-                    catch (ArgumentException)
+                    catch
                     {
-                        // Session is in invalid state, use process name
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"[DisplayName] Unexpected error for PID {pid} ({processName}): {ex.GetType().Name}");
+                        // Session might be invalid or disconnecting, will use process name fallback
                     }
 
                     if (string.IsNullOrWhiteSpace(displayName))
@@ -478,28 +489,38 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             // Use cached application session for VU meters
             if (_cachedAppSessions.TryGetValue(sessionId, out var cachedSession))
             {
+                if (cachedSession == null)
+                {
+                    _cachedAppSessions.Remove(sessionId);
+                    return 0f;
+                }
+
                 try
                 {
-                    // Check if session is still valid before accessing meter
-                    if (cachedSession == null)
-                        return 0f;
-
                     var meterInfo = cachedSession.AudioMeterInformation;
                     if (meterInfo == null)
+                    {
+                        _cachedAppSessions.Remove(sessionId);
                         return 0f;
+                    }
 
                     return meterInfo.MasterPeakValue;
                 }
                 catch (ArgumentException)
                 {
-                    // ArgumentException: Session is disconnected/invalid
-                    // Remove from cache to prevent repeated exceptions
+                    // Session is disconnected/invalid - remove from cache
+                    _cachedAppSessions.Remove(sessionId);
+                    return 0f;
+                }
+                catch (InvalidComObjectException)
+                {
+                    // COM object is invalid - remove from cache
                     _cachedAppSessions.Remove(sessionId);
                     return 0f;
                 }
                 catch
                 {
-                    // Any other error - remove from cache and return 0
+                    // Any other error - remove from cache
                     _cachedAppSessions.Remove(sessionId);
                     return 0f;
                 }
@@ -639,6 +660,9 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         if (_isMonitoring) return;
         _isMonitoring = true;
 
+        // Clear invalid session blacklist on start
+        _invalidSessions.Clear();
+
         // Initial session fetch to populate cache
         try
         {
@@ -659,6 +683,13 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         {
             try
             {
+                // Periodically clean the invalid session list (every 5 refresh cycles = ~10 seconds)
+                // This allows us to retry sessions that might have become valid
+                if (_refreshCount++ % 5 == 0)
+                {
+                    _invalidSessions.Clear();
+                }
+
                 var sessions = GetActiveSessions();
                 _cachedSessions = sessions; // Cache for peak level updates
                 SessionsChanged?.Invoke(this, new AudioSessionChangedEventArgs { Sessions = sessions });
