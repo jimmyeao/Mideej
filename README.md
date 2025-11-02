@@ -8,7 +8,7 @@ A powerful MIDI to Windows audio mixer controller for .NET9. Mideej lets you con
 
 ## Features
 
-- 🎛️ Multi-Channel Control: Up to8 simultaneous audio channels with individual volume control
+- 🎛️ Multi-Channel Control: Up to 8 simultaneous audio channels with individual volume control
 - 🎹 MIDI Controller Support: Works with any MIDI device (tested with M-Vave SMC Mixer, Behringer X-Touch Mini, Novation Launchpad)
 - 🎚️ Real-time Fader Control: Smooth, responsive volume control with visual feedback
 - 🔇 Mute & Solo: Quick mute and solo buttons for each channel with LED feedback
@@ -46,7 +46,7 @@ https://github.com/user-attachments/assets/5d78b155-1a26-405c-a27e-e7a0cd616414
 ## Requirements
 
 - Windows10 version1809 (build17763) or later
-- .NET9.0 Runtime (Desktop)
+- .NET 9.0 Runtime (Desktop)
 - A MIDI controller (physical or virtual)
 
 ## Installation
@@ -146,7 +146,7 @@ Notes:
 ## Supported Controllers
 
 Includes presets for:
-- M‑Vave SMC Mixer:8-channel controller with LED buttons (tested)
+- M‑Vave SMC Mixer: 8-channel controller with LED buttons (tested)
 - Behringer X‑Touch Mini: Encoders + buttons (untested)
 - Novation Launchpad: Grid controller (untested)
 
@@ -168,7 +168,7 @@ Example (simplified):
 
 ## Technology Stack
 
-- .NET9.0, WPF
+- .NET 9.0, WPF
 - CommunityToolkit.MVVM
 - NAudio (audio/MIDI)
 
