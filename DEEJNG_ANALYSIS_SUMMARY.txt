@@ -1,0 +1,63 @@
+DEEJNG AUDIO SESSION ANALYSIS SUMMARY
+
+KEY FINDINGS:
+
+1. THREE-TIER CACHING STRATEGY
+   - Device cache: 2 seconds (GetDefaultAudioEndpoint)
+   - Session collection cache: 50ms (SessionManager.Sessions)
+   - Process name cache: 30 entries, 60-second cleanup
+
+2. SESSION IDENTITY TRACKING
+   - Use compound key: (sessionId, instanceId)
+   - Prevents duplicate session handling
+   - Found in MainWindow.xaml.cs lines 2273-2301
+
+3. PREVENT DUPLICATE SESSIONS
+   - Group by process name
+   - Multiple sessions from same app stored together
+   - Simplified volume control
+
+4. AUTOMATIC CLEANUP
+   - Session cache max 15, LRU eviction
+   - Process cache max 30, auto-cleanup
+   - Force cleanup every 5 minutes
+
+5. VU METER UPDATES AT 25MS (40 FPS)
+   - Timer in TimerCoordinator
+   - Fuzzy matching for session finding (max 20 iterations)
+   - try-catch around each session
+
+6. METER SMOOTHING IN EACH CHANNEL
+   - Asymmetric: instant rise, 0.8 fall
+   - Noise floor: 2%
+   - Change detection: 0.5%
+   - Peak hold: 500ms
+
+7. COM OBJECT CLEANUP (CRITICAL!)
+   - Stop timers → unsubscribe → dispose → release COM
+   - Explicit Marshal.FinalReleaseComObject needed
+   - Not relying on garbage collection alone
+
+8. EXCEPTION HANDLING
+   - Catch ArgumentException specifically (dead session)
+   - Use backoff for failed devices (5 seconds)
+   - Never rethrow in loops
+
+CRITICAL BUGS TO AVOID:
+- Unbounded cache growth (Fix: max size + LRU)
+- ArgumentException cascade (Fix: try-catch each session)
+- High CPU from repeated lookups (Fix: caching)
+- Synchronous COM blocking (Fix: cache device)
+- O(N²) complexity (Fix: limit iterations)
+- No backoff on failures (Fix: backoff dict)
+- COM not released (Fix: Marshal.ReleaseComObject)
+- One failure breaks all (Fix: exception isolation)
+
+FILES TO READ:
+1. TimerCoordinator.cs (timer architecture)
+2. AudioService.cs (session caching)
+3. AudioUtilities.cs (process name caching)
+4. MainWindow.xaml.cs UpdateMeters (meter flow)
+5. MainWindow.xaml.cs FindSessionOptimized (matching)
+6. MainWindow.xaml.cs OnClosed (cleanup)
+7. ChannelControl.xaml.cs UpdateAudioMeter (smoothing)

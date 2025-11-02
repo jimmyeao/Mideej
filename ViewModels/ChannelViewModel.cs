@@ -331,15 +331,25 @@ public partial class ChannelViewModel : ViewModelBase
             }
             else // Application sessions - use fuzzy matching like DeejNG
             {
-                // 1. Try ProcessName fuzzy match (primary method, like DeejNG)
+                // 1. Try ProcessName matching (EXACT first, then fuzzy)
                 if (!string.IsNullOrWhiteSpace(r.ProcessName))
                 {
                     var cleanedTargetName = Path.GetFileNameWithoutExtension(r.ProcessName).ToLowerInvariant();
 
+                    // FIRST: Try exact match to avoid "edge" matching "msedgewebview"
                     match = availableSessions.FirstOrDefault(s =>
                         s.SessionType == AudioSessionType.Application &&
                         !string.IsNullOrWhiteSpace(s.ProcessName) &&
-                        FuzzyMatchProcessName(s.ProcessName, cleanedTargetName));
+                        Path.GetFileNameWithoutExtension(s.ProcessName).Equals(cleanedTargetName, StringComparison.OrdinalIgnoreCase));
+
+                    // FALLBACK: If no exact match, try fuzzy matching
+                    if (match == null)
+                    {
+                        match = availableSessions.FirstOrDefault(s =>
+                            s.SessionType == AudioSessionType.Application &&
+                            !string.IsNullOrWhiteSpace(s.ProcessName) &&
+                            FuzzyMatchProcessName(s.ProcessName, cleanedTargetName));
+                    }
                 }
 
                 // 2. Fall back to ProcessId (if process hasn't restarted)

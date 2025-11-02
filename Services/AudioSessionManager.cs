@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows.Threading;
 using Mideej.Helpers;
 using Mideej.Models;
@@ -8,8 +9,10 @@ using NAudio.CoreAudioApi;
 namespace Mideej.Services;
 
 /// <summary>
-/// Simplified AudioSessionManager matching DeejNG's architecture exactly.
-/// No device caching, no session caching for operations - always get fresh.
+/// AudioSessionManager matching DeejNG's architecture for volume/mute operations.
+/// Session references are cached ONLY for VU meter readings (performance critical).
+/// Volume and mute operations ALWAYS enumerate fresh sessions by process name.
+/// This prevents issues with apps like Spotify that dynamically recreate sessions.
 /// </summary>
 public class AudioSessionManager : IAudioSessionManager, IDisposable
 {
@@ -44,7 +47,17 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             }
             _cachedDevices.Clear();
 
-            // Clear application session cache (these don't need disposal, they're references)
+            // CRITICAL: Release COM objects for AudioSessionControl to prevent leaks
+            // This prevents breaking other applications' VU meters
+            foreach (var session in _cachedAppSessions.Values)
+            {
+                try
+                {
+                    if (session != null)
+                        Marshal.FinalReleaseComObject(session);
+                }
+                catch { /* Ignore release errors */ }
+            }
             _cachedAppSessions.Clear();
 
             // Get default device fresh every time (like DeejNG)
@@ -73,42 +86,119 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
             // Get all sessions
             var audioSessions = defaultDevice.AudioSessionManager.Sessions;
-            var seenProcessIds = new HashSet<int>();
+            var seenSessionIds = new HashSet<string>(); // Track unique sessions, not just PIDs
 
             for (int i = 0; i < audioSessions.Count; i++)
             {
                 try
                 {
                     var session = audioSessions[i];
-                    int pid = (int)session.GetProcessID;
-
-                    if (_systemProcessIds.Contains(pid) || pid < 100 || seenProcessIds.Contains(pid))
+                    if (session == null)
                         continue;
 
-                    seenProcessIds.Add(pid);
+                    int pid;
+                    try
+                    {
+                        pid = (int)session.GetProcessID;
+                    }
+                    catch (ArgumentException)
+                    {
+                        // Session is in invalid state, skip it
+                        continue;
+                    }
+
+                    if (_systemProcessIds.Contains(pid) || pid < 100)
+                        continue;
 
                     string processName = ProcessNameCache.GetProcessName(pid);
                     if (string.IsNullOrEmpty(processName))
                         continue;
 
-                    string sessionId = $"app_{processName}_{pid}";
+                    // Create unique sessionId using session instance identifier (like DeejNG)
+                    // This handles cases where one process has multiple audio sessions (e.g., Chrome tabs)
+                    string instanceId = "";
+                    try
+                    {
+                        instanceId = session.GetSessionInstanceIdentifier;
+                    }
+                    catch (ArgumentException)
+                    {
+                        // Session is in invalid state, use index as fallback
+                        instanceId = i.ToString();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[GetSessionInstanceIdentifier] Unexpected error for PID {pid} ({processName}): {ex.GetType().Name}");
+                        instanceId = i.ToString();
+                    }
+
+                    string sessionId = $"app_{processName}_{pid}_{instanceId}";
+
+                    // Skip if we've already seen this exact session
+                    if (seenSessionIds.Contains(sessionId))
+                        continue;
+
+                    seenSessionIds.Add(sessionId);
 
                     // Cache the session reference for VU meter updates and fast volume/mute changes
                     _cachedAppSessions[sessionId] = session;
 
+                    // Extract friendly name, fallback to process name if empty
+                    string displayName = "";
+                    try
+                    {
+                        displayName = session.DisplayName;
+                    }
+                    catch (ArgumentException)
+                    {
+                        // Session is in invalid state, use process name
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[DisplayName] Unexpected error for PID {pid} ({processName}): {ex.GetType().Name}");
+                    }
+
+                    if (string.IsNullOrWhiteSpace(displayName))
+                        displayName = processName;
+
+                    float volume = 0f, peakLevel = 0f;
+                    bool isMuted = false;
+
+                    try
+                    {
+                        volume = session.SimpleAudioVolume.Volume;
+                        isMuted = session.SimpleAudioVolume.Mute;
+                        peakLevel = session.AudioMeterInformation.MasterPeakValue;
+                    }
+                    catch (ArgumentException)
+                    {
+                        // Session is in invalid state, use defaults
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[AudioProperties] Unexpected error for PID {pid} ({processName}): {ex.GetType().Name} - {ex.Message}");
+                    }
+
                     sessions.Add(new AudioSessionInfo
                     {
                         SessionId = sessionId,
-                        DisplayName = session.DisplayName ?? processName,
+                        DisplayName = displayName,
                         ProcessName = processName,
                         ProcessId = pid,
                         SessionType = AudioSessionType.Application,
-                        Volume = session.SimpleAudioVolume.Volume,
-                        IsMuted = session.SimpleAudioVolume.Mute,
-                        PeakLevel = session.AudioMeterInformation.MasterPeakValue
+                        Volume = volume,
+                        IsMuted = isMuted,
+                        PeakLevel = peakLevel
                     });
                 }
-                catch { /* Skip invalid sessions */ }
+                catch (ArgumentException)
+                {
+                    // Session is in invalid state, skip it silently
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[GetActiveSessions] Unexpected error for session {i}: {ex.GetType().Name} - {ex.Message}");
+                }
             }
         }
         catch (Exception ex)
@@ -230,18 +320,9 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 return;
             }
 
-            // Fast path for application sessions: use cached AudioSessionControl if available
-            if (_cachedAppSessions.TryGetValue(sessionId, out var cachedSession))
-            {
-                try
-                {
-                    cachedSession.SimpleAudioVolume.Volume = volume;
-                    return;
-                }
-                catch { /* fall back below if needed */ }
-            }
-
-            // Extract process name from sessionId (format: app_processname_pid)
+            // For application sessions: ALWAYS enumerate fresh sessions and match by process name
+            // This is critical for apps like Spotify that dynamically recreate audio sessions
+            // DO NOT use cached session references - they may be stale
             if (sessionId.StartsWith("app_"))
             {
                 var parts = sessionId.Split('_');
@@ -293,17 +374,9 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 return;
             }
 
-            // Fast path for application sessions: use cached AudioSessionControl if available
-            if (_cachedAppSessions.TryGetValue(sessionId, out var cachedSession))
-            {
-                try
-                {
-                    cachedSession.SimpleAudioVolume.Mute = isMuted;
-                    return;
-                }
-                catch { /* fall back below if needed */ }
-            }
-
+            // For application sessions: ALWAYS enumerate fresh sessions and match by process name
+            // This is critical for apps like Spotify that dynamically recreate audio sessions
+            // DO NOT use cached session references - they may be stale
             if (sessionId.StartsWith("app_"))
             {
                 var parts = sessionId.Split('_');
@@ -333,10 +406,37 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             // Use cached application session for VU meters
             if (_cachedAppSessions.TryGetValue(sessionId, out var cachedSession))
             {
-                return cachedSession.AudioMeterInformation.MasterPeakValue;
+                try
+                {
+                    // Check if session is still valid before accessing meter
+                    if (cachedSession == null)
+                        return 0f;
+
+                    var meterInfo = cachedSession.AudioMeterInformation;
+                    if (meterInfo == null)
+                        return 0f;
+
+                    return meterInfo.MasterPeakValue;
+                }
+                catch (ArgumentException)
+                {
+                    // ArgumentException: Session is disconnected/invalid
+                    // Remove from cache to prevent repeated exceptions
+                    _cachedAppSessions.Remove(sessionId);
+                    return 0f;
+                }
+                catch
+                {
+                    // Any other error - remove from cache and return 0
+                    _cachedAppSessions.Remove(sessionId);
+                    return 0f;
+                }
             }
         }
-        catch { /* Ignore */ }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[GetSessionPeakLevel] Unexpected error for {sessionId}: {ex.GetType().Name} - {ex.Message}");
+        }
 
         return 0f;
     }
@@ -672,7 +772,16 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         }
         _cachedDevices.Clear();
 
-        // Clear application session cache
+        // CRITICAL: Release COM objects for AudioSessionControl
+        foreach (var session in _cachedAppSessions.Values)
+        {
+            try
+            {
+                if (session != null)
+                    Marshal.FinalReleaseComObject(session);
+            }
+            catch { /* Ignore release errors */ }
+        }
         _cachedAppSessions.Clear();
 
         _deviceEnumerator?.Dispose();

@@ -1,0 +1,51 @@
+DEEJNG SESSION DEDUPLICATION - QUICK REFERENCE
+
+KEY CONCEPT: DeejNG deduplicates MULTIPLE SESSIONS FROM SAME PROCESS at the UI level using 
+a HashSet<string> that tracks friendly names (process names).
+
+DEDUPLICATION MECHANISM (MultiTargetPickerDialog.LoadSessions):
+- Initializes HashSet<string> with {"system", "unmapped"}
+- Loops through ALL audio sessions
+- For each session:
+  1. Gets process ID
+  2. Extracts friendly name via Process.GetProcessById + ProcessName
+  3. Checks: if (seenProcesses.Contains(friendlyName)) SKIP
+  4. Otherwise: Add to UI and mark as seen
+
+RESULT: Spotify with 3 sessions shows as ONE entry to user
+
+PROCESS NAME EXTRACTION (AudioUtilities.GetProcessNameSafely):
+- Uses Process.ProcessName (NOT MainModule which throws for UWP)
+- Caches results in Dictionary<int, string>
+- Cleans cache every 60 seconds, max 30 entries
+- Skips system processes (PIDs 0,4,8) and PID < 100
+
+SESSION IDENTITY:
+- SimpleSessionPicker: Uses GetSessionIdentifier/GetSessionInstanceIdentifier with fallback
+- MultiTargetPickerDialog: Uses process name only (lowercase)
+- ID stored as: friendlyName.ToLowerInvariant()
+
+SPECIAL ENTRIES:
+- "system" (Id="system") - Master volume
+- "unmapped" (Id="unmapped") - Catch-all apps
+- "current" (Id="current") - Currently focused app (MultiTarget only)
+
+WHEN APPLYING CONTROLS:
+- User sets "spotify" volume to 50%
+- System finds ALL sessions with process name "spotify"
+- Applies 50% to EACH matching session
+- Result: ALL Spotify audio streams get 50% volume
+
+KEY FILES:
+- DeejNG/Dialogs/MultiTargetPickerDialog.xaml.cs (lines 237-364) - LoadSessions deduplication
+- DeejNG/Classes/AudioUtilities.cs - GetProcessNameSafely with caching
+- DeejNG/Classes/AudioService.cs - ApplyVolumeToTarget with loop through all sessions
+
+ADVANTAGES:
+- Simple for users (no session IDs)
+- Multiple instances controlled together
+- Robust to session recreation
+
+DISADVANTAGES:
+- Can't control individual sessions from same app
+- No indication to user that multiple sessions exist

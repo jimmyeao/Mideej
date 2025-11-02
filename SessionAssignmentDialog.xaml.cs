@@ -88,7 +88,10 @@ public partial class SessionAssignmentDialog : Window, INotifyPropertyChanged
         InputDeviceSessions.Clear();
         ApplicationSessions.Clear();
 
-        foreach (var session in AvailableSessions)
+        // DeejNG-style: Deduplicate by process name (show only one entry per app)
+        var seenProcesses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var session in AvailableSessions.OrderBy(s => s.DisplayName))
         {
             switch (session.SessionType)
             {
@@ -101,7 +104,15 @@ public partial class SessionAssignmentDialog : Window, INotifyPropertyChanged
                     break;
                 case AudioSessionType.Application:
                 case AudioSessionType.SystemSounds:
-                    ApplicationSessions.Add(session);
+                    // DeejNG deduplication: Only show first occurrence of each process name
+                    string processName = System.IO.Path.GetFileNameWithoutExtension(session.ProcessName).ToLowerInvariant();
+
+                    if (!seenProcesses.Contains(processName))
+                    {
+                        seenProcesses.Add(processName);
+                        ApplicationSessions.Add(session);
+                    }
+                    // Silently skip duplicate process names (like DeejNG does)
                     break;
             }
         }
@@ -200,7 +211,7 @@ public partial class SessionAssignmentDialog : Window, INotifyPropertyChanged
             });
         }
 
-        // Add all checked sessions from all groups
+        // Add all checked sessions
         var allSessions = MasterAndOutputSessions
             .Concat(InputDeviceSessions)
             .Concat(ApplicationSessions);

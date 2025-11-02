@@ -1,0 +1,155 @@
+DEEJNG SESSION DEDUPLICATION - QUICK REFERENCE
+
+KEY CONCEPT: DeejNG deduplicates MULTIPLE SESSIONS FROM SAME PROCESS at the UI level using 
+a HashSet<string> that tracks friendly names (process names).
+
+DEDUPLICATION MECHANISM (MultiTargetPickerDialog.LoadSessions):
+- Initializes HashSet<string> with {"system", "unmapped"}
+- Loops through ALL audio sessions
+- For each session:
+  1. Gets process ID
+  2. Extracts friendly name via Process.GetProcessById + ProcessName
+  3. Checks: if (seenProcesses.Contains(friendlyName)) SKIP
+  4. Otherwise: Add to UI and mark as seen
+
+RESULT: Spotify with 3 sessions shows as ONE entry to user
+
+PROCESS NAME EXTRACTION (AudioUtilities.GetProcessNameSafely):
+- Uses Process.ProcessName (NOT MainModule which throws for UWP)
+- Caches results in Dictionary<int, string>
+- Cleans cache every 60 seconds, max 30 entries
+- Skips system processes (PIDs 0,4,8) and PID < 100
+
+SESSION IDENTITY:
+- SimpleSessionPicker: Uses GetSessionIdentifier/GetSessionInstanceIdentifier with fallback
+- MultiTargetPickerDialog: Uses process name only (lowercase)
+- ID stored as: friendlyName.ToLowerInvariant()
+
+SPECIAL ENTRIES:
+- "system" (Id="system") - Master volume
+- "unmapped" (Id="unmapped") - Catch-all apps
+- "current" (Id="current") - Currently focused app (MultiTarget only)
+
+WHEN APPLYING CONTROLS:
+- User sets "spotify" volume to 50%
+- System finds ALL sessions with process name "spotify"
+- Applies 50% to EACH matching session
+- Result: ALL Spotify audio streams get 50% volume
+
+KEY FILES:
+- DeejNG/Dialogs/MultiTargetPickerDialog.xaml.cs (lines 237-364) - LoadSessions deduplication
+- DeejNG/Classes/AudioUtilities.cs - GetProcessNameSafely with caching
+- DeejNG/Classes/AudioService.cs - ApplyVolumeToTarget with loop through all sessions
+
+ADVANTAGES:
+- Simple for users (no session IDs)
+- Multiple instances controlled together
+- Robust to session recreation
+
+DISADVANTAGES:
+- Can't control individual sessions from same app
+- No indication to user that multiple sessions exist
+
+DETAILED CODE LOCATIONS:
+
+
+DETAILED CODE LOCATIONS AND METHODS:
+
+1. CORE DEDUPLICATION IN LoadSessions():
+   File: MultiTargetPickerDialog.xaml.cs
+   Lines: 237-364
+   
+   Key mechanism:
+   - HashSet<string> seenProcesses initialized with {"system", "unmapped"}
+   - Loop through all audio sessions
+   - For each session:
+     * Get process ID from session.GetProcessID
+     * Extract friendly name (e.g., "spotify")
+     * Check: if (!seenProcesses.Contains(friendlyName)) 
+     * If new: add to AvailableSessions list and mark seenProcesses.Add(friendlyName)
+     * If duplicate: skip this session (continue loop)
+
+2. PROCESS NAME EXTRACTION:
+   File: AudioUtilities.cs
+   Lines: 60-107 (GetProcessNameSafely method)
+   
+   Key features:
+   - Returns lowercase process name: process.ProcessName?.ToLowerInvariant()
+   - Uses Process.ProcessName NOT MainModule.FileName (safer for UWP)
+   - Caches in _processNameCache: Dictionary<int, string>
+   - Returns empty string on failure
+   - Cache cleanup every 60 seconds (max 30 entries)
+
+3. VOLUME APPLICATION TO ALL MATCHING SESSIONS:
+   File: AudioService.cs
+   Lines: 125-237 (ApplyVolumeToTarget method)
+   
+   Key mechanism:
+   - User selects "spotify" in dialog
+   - System calls ApplyVolumeToTarget("spotify", volumeLevel)
+   - Gets all sessions again: device.AudioSessionManager.Sessions
+   - Loops through EVERY session (not deduplicated collection)
+   - For each session:
+     * Gets process name and normalizes it
+     * Uses IsProcessNameMatch() for fuzzy matching
+     * If matches: session.SimpleAudioVolume.Volume = volumeLevel
+   - Counts and logs how many sessions matched
+
+4. FUZZY MATCHING:
+   File: AudioService.cs
+   Lines: 448-469 (IsProcessNameMatch method)
+   
+   Matches on:
+   - Exact equality: "spotify" == "spotify"
+   - Substring contains: "spotifywebhelper" contains "spotify"
+   - Reverse contains: "spotify" contains "spotify"
+
+5. SPECIAL SESSION ENTRIES:
+   File: MultiTargetPickerDialog.xaml.cs
+   Lines: 240-271
+   
+   Adds before enumeration:
+   - System session: Id="system", FriendlyName="System"
+   - Unmapped session: Id="unmapped", FriendlyName="Unmapped Applications"
+   - Current session: Id="current", FriendlyName="Currently Focused Application"
+
+6. DIALOG INVOCATION:
+   File: ChannelControl.xaml.cs
+   Lines: 363-385 (ChannelControl_MouseDoubleClick method)
+   
+   Flow:
+   - User double-clicks channel
+   - Creates new MultiTargetPickerDialog(currentTargets)
+   - Dialog shows with deduplicated sessions
+   - User selects apps/devices
+   - Dialog returns List<AudioTarget>
+   - Caller stores: _audioTargets = picker.SelectedTargets
+
+7. SESSION CACHING:
+   File: AudioService.cs
+   Lines: 475-611 (RefreshSessionCache method)
+   
+   Caching strategy:
+   - Groups sessions by process name in sessionsByApp dictionary
+   - Caches in _sessionCache: Dictionary<string appName, List<SessionInfo>>
+   - Tracks access times for LRU eviction
+   - Max 15 entries, removes stale (2+ min) and dead process entries
+   - Refresh rate: every 5 seconds
+
+
+IMPLEMENTATION SUMMARY FOR MIDEEJ:
+
+Use MultiTargetPickerDialog pattern:
+1. Three UI sections: Apps (deduplicated), Input Devices, Output Devices
+2. In LoadSessions():
+   - Add special entries (system, unmapped, current)
+   - Loop through SessionManager.Sessions
+   - Track seen friendly names in HashSet
+   - Only add first occurrence of each process name
+3. Store selection as List<AudioTarget> with Name field
+4. When applying controls:
+   - Loop through all sessions again (not deduplicated)
+   - Find all matching by process name
+   - Apply to each one found
+5. Cache process names (30 max, 60 sec cleanup)
+

@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:models="clr-namespace:Mideej.Models"
+        xmlns:local="clr-namespace:Mideej"
         mc:Ignorable="d"
         Title="Assign Audio Session"
         Height="700"
@@ -15,6 +16,7 @@
         AllowsTransparency="True"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner">
+
 
     <Border BorderBrush="{DynamicResource BorderBrush}"
             BorderThickness="1"
