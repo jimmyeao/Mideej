@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using Mideej.Helpers;
 using Mideej.Models;
 using NAudio.CoreAudioApi;
+using NAudio.Wave;
 
 namespace Mideej.Services;
 
@@ -24,6 +25,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     private List<AudioSessionInfo> _cachedSessions = new();
     private Dictionary<string, MMDevice> _cachedDevices = new();
     private Dictionary<string, AudioSessionControl> _cachedAppSessions = new();
+    private Dictionary<string, (WasapiCapture Capture, MMDevice Device)> _inputDeviceCaptures = new();
     
     public event EventHandler<AudioSessionChangedEventArgs>? SessionsChanged;
     public event EventHandler<SessionVolumeChangedEventArgs>? SessionVolumeChanged;
@@ -397,10 +399,80 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     {
         try
         {
-            // Use cached device for performance (avoid re-enumerating every 50ms!)
-            if (_cachedDevices.TryGetValue(sessionId, out var cachedDevice))
+            // Handle master output
+            if (sessionId == "master_output")
             {
-                return cachedDevice.AudioMeterInformation.MasterPeakValue;
+                try
+                {
+                    using var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                    return device.AudioMeterInformation.MasterPeakValue;
+                }
+                catch
+                {
+                    return 0f;
+                }
+            }
+
+            // Handle input devices - use active capture session for monitoring
+            if (sessionId.StartsWith("input_"))
+            {
+                try
+                {
+                    // Ensure we have an active capture session
+                    EnsureInputDeviceCapture(sessionId);
+
+                    // Try to get peak from active capture
+                    if (_inputDeviceCaptures.TryGetValue(sessionId, out var captureInfo))
+                    {
+                        try
+                        {
+                            var peak = captureInfo.Device.AudioMeterInformation.MasterPeakValue;
+                            return peak;
+                        }
+                        catch
+                        {
+                            // Capture might have failed, remove it
+                            try
+                            {
+                                captureInfo.Capture?.StopRecording();
+                                captureInfo.Capture?.Dispose();
+                                captureInfo.Device?.Dispose();
+                            }
+                            catch { }
+                            _inputDeviceCaptures.Remove(sessionId);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[GetSessionPeakLevel] Input device error for {sessionId}: {ex.Message}");
+                }
+                return 0f;
+            }
+
+            // Handle output devices - get fresh device reference each time
+            if (sessionId.StartsWith("output_"))
+            {
+                try
+                {
+                    var deviceId = sessionId["output_".Length..];
+                    var deviceCollection = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+                    foreach (var device in deviceCollection)
+                    {
+                        if (device.ID == deviceId)
+                        {
+                            var peak = device.AudioMeterInformation.MasterPeakValue;
+                            device.Dispose();
+                            return peak;
+                        }
+                        device.Dispose();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[GetSessionPeakLevel] Output device error for {sessionId}: {ex.Message}");
+                }
+                return 0f;
             }
 
             // Use cached application session for VU meters
@@ -638,6 +710,19 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         _peakLevelTimer?.Stop();
         _peakLevelTimer = null;
 
+        // Stop all input device captures
+        foreach (var (capture, device) in _inputDeviceCaptures.Values)
+        {
+            try
+            {
+                capture?.StopRecording();
+                capture?.Dispose();
+                device?.Dispose();
+            }
+            catch { }
+        }
+        _inputDeviceCaptures.Clear();
+
         Debug.WriteLine("[AudioSessionManager] Monitoring stopped");
     }
 
@@ -761,6 +846,19 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     {
         StopMonitoring();
 
+        // Dispose input device captures
+        foreach (var (capture, device) in _inputDeviceCaptures.Values)
+        {
+            try
+            {
+                capture?.StopRecording();
+                capture?.Dispose();
+                device?.Dispose();
+            }
+            catch { /* Ignore disposal errors */ }
+        }
+        _inputDeviceCaptures.Clear();
+
         // Dispose all cached devices
         foreach (var device in _cachedDevices.Values)
         {
@@ -785,5 +883,42 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         _cachedAppSessions.Clear();
 
         _deviceEnumerator?.Dispose();
+    }
+
+    /// <summary>
+    /// Ensures an input device has an active capture session for monitoring levels
+    /// </summary>
+    private void EnsureInputDeviceCapture(string sessionId)
+    {
+        if (!sessionId.StartsWith("input_"))
+            return;
+
+        if (_inputDeviceCaptures.ContainsKey(sessionId))
+            return; // Already capturing
+
+        try
+        {
+            var deviceId = sessionId["input_".Length..];
+            var deviceCollection = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+
+            foreach (var device in deviceCollection)
+            {
+                if (device.ID == deviceId)
+                {
+                    var capture = new WasapiCapture(device);
+                    capture.DataAvailable += (s, e) => { /* Discard data, we only want meter */ };
+                    capture.StartRecording();
+                    _inputDeviceCaptures[sessionId] = (capture, device);
+                    Debug.WriteLine($"[EnsureInputDeviceCapture] Started capture for {device.FriendlyName}");
+                    // Don't dispose device - we need it for meter readings
+                    return;
+                }
+                device.Dispose();
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[EnsureInputDeviceCapture] Failed to start capture for {sessionId}: {ex.Message}");
+        }
     }
 }
