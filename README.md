@@ -168,7 +168,7 @@ Example (simplified):
 
 ## Technology Stack
 
-- .NET9.0, WPF
+- .NET 9.0, WPF
 - CommunityToolkit.MVVM
 - NAudio (audio/MIDI)
 
