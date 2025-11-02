@@ -146,7 +146,7 @@ Notes:
 ## Supported Controllers
 
 Includes presets for:
-- M‑Vave SMC Mixer:8-channel controller with LED buttons (tested)
+- M‑Vave SMC Mixer: 8-channel controller with LED buttons (tested)
 - Behringer X‑Touch Mini: Encoders + buttons (untested)
 - Novation Launchpad: Grid controller (untested)
 
