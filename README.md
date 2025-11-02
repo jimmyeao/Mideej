@@ -8,7 +8,7 @@ A powerful MIDI to Windows audio mixer controller for .NET9. Mideej lets you con
 
 ## Features
 
-- 🎛️ Multi-Channel Control: Up to8 simultaneous audio channels with individual volume control
+- 🎛️ Multi-Channel Control: Up to 8 simultaneous audio channels with individual volume control
 - 🎹 MIDI Controller Support: Works with any MIDI device (tested with M-Vave SMC Mixer, Behringer X-Touch Mini, Novation Launchpad)
 - 🎚️ Real-time Fader Control: Smooth, responsive volume control with visual feedback
 - 🔇 Mute & Solo: Quick mute and solo buttons for each channel with LED feedback
