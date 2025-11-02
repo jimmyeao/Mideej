@@ -46,7 +46,7 @@ https://github.com/user-attachments/assets/5d78b155-1a26-405c-a27e-e7a0cd616414
 ## Requirements
 
 - Windows10 version1809 (build17763) or later
-- .NET9.0 Runtime (Desktop)
+- .NET 9.0 Runtime (Desktop)
 - A MIDI controller (physical or virtual)
 
 ## Installation
