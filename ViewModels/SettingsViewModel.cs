@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mideej.Models;
 using Mideej.Services;
+using Mideej.Views;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
@@ -15,6 +16,7 @@ public partial class SettingsViewModel : ViewModelBase
 {
     private readonly IConfigurationService? _configurationService;
     private readonly MainWindowViewModel _mainViewModel;
+    private readonly ThemeService _themeService;
 
     [ObservableProperty]
     private bool _minimizeToTray;
@@ -56,6 +58,7 @@ public partial class SettingsViewModel : ViewModelBase
     {
         _mainViewModel = mainViewModel;
         _configurationService = configurationService;
+        _themeService = new ThemeService();
 
         // Load current settings from main view model
         MinimizeToTray = mainViewModel.MinimizeToTray;
@@ -303,6 +306,133 @@ public partial class SettingsViewModel : ViewModelBase
     private void Close(Window? window)
     {
         window?.Close();
+    }
+
+    [RelayCommand]
+    private void CreateNewTheme()
+    {
+        try
+        {
+            // Create a new theme based on the current theme
+            var currentTheme = _themeService.LoadThemeFromFile(SelectedTheme?.Name ?? "DarkTheme");
+            if (currentTheme == null)
+            {
+                currentTheme = new Theme();
+            }
+
+            currentTheme.Name = "CustomTheme";
+            currentTheme.DisplayName = "Custom";
+
+            var editor = new ThemeEditorWindow(currentTheme, _themeService, () =>
+            {
+                // Refresh available themes in main view model
+                _mainViewModel.RefreshAvailableThemes();
+                StatusMessage = "Theme created successfully";
+            }, isNewTheme: true);
+
+            if (editor.ShowDialog() == true)
+            {
+                // After successful save, refresh the theme list
+                _mainViewModel.RefreshAvailableThemes();
+                StatusMessage = "Theme created successfully";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error creating theme: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private void EditTheme()
+    {
+        try
+        {
+            if (SelectedTheme == null)
+            {
+                StatusMessage = "Please select a theme to edit";
+                return;
+            }
+
+            var theme = _themeService.LoadThemeFromFile(SelectedTheme.Name);
+            if (theme == null)
+            {
+                StatusMessage = $"Could not load theme '{SelectedTheme.Name}'";
+                return;
+            }
+
+            var currentThemeName = SelectedTheme.Name;
+
+            var editor = new ThemeEditorWindow(theme, _themeService, () =>
+            {
+                // Refresh available themes in main view model
+                _mainViewModel.RefreshAvailableThemes();
+            }, isNewTheme: false);
+
+            var result = editor.ShowDialog();
+
+            // After closing the editor (whether saved or cancelled)
+            // Refresh the theme list and reapply the current theme
+            _mainViewModel.RefreshAvailableThemes();
+
+            // Reapply the theme to ensure it loads from the updated file
+            var updatedTheme = _mainViewModel.AvailableThemes.FirstOrDefault(t => t.Name == currentThemeName);
+            if (updatedTheme != null)
+            {
+                _mainViewModel.SelectedTheme = updatedTheme;
+            }
+
+            if (result == true)
+            {
+                StatusMessage = "Theme updated successfully";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error editing theme: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private void ImportTheme()
+    {
+        try
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Import Theme",
+                Filter = "XAML files (*.xaml)|*.xaml|All files (*.*)|*.*",
+                DefaultExt = ".xaml"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                var theme = _themeService.ImportTheme(dialog.FileName);
+                if (theme != null)
+                {
+                    // Refresh available themes in main view model
+                    _mainViewModel.RefreshAvailableThemes();
+
+                    StatusMessage = $"Theme '{theme.DisplayName}' imported successfully";
+
+                    // Select the newly imported theme
+                    var importedTheme = _mainViewModel.AvailableThemes.FirstOrDefault(t => t.Name == theme.Name);
+                    if (importedTheme != null)
+                    {
+                        SelectedTheme = importedTheme;
+                        _mainViewModel.SelectedTheme = importedTheme;
+                    }
+                }
+                else
+                {
+                    StatusMessage = "Failed to import theme";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Import error: {ex.Message}";
+        }
     }
 }
 

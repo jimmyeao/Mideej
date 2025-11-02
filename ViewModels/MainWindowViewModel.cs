@@ -100,29 +100,154 @@ public partial class MainWindowViewModel : ViewModelBase
         UpdateStartupRegistry(value);
     }
 
-    public ObservableCollection<ThemeOption> AvailableThemes { get; } = new()
- {
- new ThemeOption { Name = "DarkTheme", DisplayName = "Dark 🌙" },
- new ThemeOption { Name = "LightTheme", DisplayName = "Light ☀️" },
- new ThemeOption { Name = "NordTheme", DisplayName = "Nord 🌊" },
- new ThemeOption { Name = "DraculaTheme", DisplayName = "Dracula 🦇" },
- new ThemeOption { Name = "OceanTheme", DisplayName = "Ocean 🌅" },
- new ThemeOption { Name = "SunsetTheme", DisplayName = "Sunset 🌇" },
- new ThemeOption { Name = "CyberpunkTheme", DisplayName = "Cyberpunk 🌈" },
- new ThemeOption { Name = "ForestTheme", DisplayName = "Forest 🌿" },
- new ThemeOption { Name = "ArcticTheme", DisplayName = "Arctic ❄️" },
- // Holiday themes
- new ThemeOption { Name = "HalloweenTheme", DisplayName = "Halloween 🎃" },
- new ThemeOption { Name = "ChristmasTheme", DisplayName = "Christmas 🎄" },
- new ThemeOption { Name = "DiwaliTheme", DisplayName = "Diwali 🪔" },
- new ThemeOption { Name = "HanukkahTheme", DisplayName = "Hanukkah 🕎" },
- new ThemeOption { Name = "EidTheme", DisplayName = "Eid 🌙" },
- new ThemeOption { Name = "LunarNewYearTheme", DisplayName = "Lunar New Year 🧧" },
- new ThemeOption { Name = "EasterTheme", DisplayName = "Easter 🐣" },
- new ThemeOption { Name = "NowruzTheme", DisplayName = "Nowruz 🌱" },
- new ThemeOption { Name = "RamadanTheme", DisplayName = "Ramadan 🌙" },
- new ThemeOption { Name = "PrideTheme", DisplayName = "Pride 🏳️‍🌈" }
- };
+    public ObservableCollection<ThemeOption> AvailableThemes { get; } = new();
+
+    public void RefreshAvailableThemes()
+    {
+        try
+        {
+            var currentSelection = SelectedTheme?.Name;
+            var themeService = new ThemeService();
+
+            System.Diagnostics.Debug.WriteLine("RefreshAvailableThemes: Starting refresh");
+
+            // Get all available themes
+            var availableThemeNames = themeService.GetAvailableThemes();
+            System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: Found {availableThemeNames.Count} theme names");
+
+            // Check for custom themes (physical files in AppData)
+            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var customThemesPath = Path.Combine(appDataPath, "Mideej", "Themes");
+            var customThemeNames = new HashSet<string>();
+            if (Directory.Exists(customThemesPath))
+            {
+                customThemeNames = Directory.GetFiles(customThemesPath, "*Theme.xaml")
+                    .Select(f => Path.GetFileNameWithoutExtension(f))
+                    .ToHashSet();
+                System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: Found {customThemeNames.Count} custom themes");
+            }
+
+            // Built-in theme display names
+            var builtInThemeNames = new Dictionary<string, string>
+            {
+                { "DarkTheme", "Dark 🌙" },
+                { "LightTheme", "Light ☀️" },
+                { "NordTheme", "Nord 🌊" },
+                { "DraculaTheme", "Dracula 🦇" },
+                { "OceanTheme", "Ocean 🌅" },
+                { "SunsetTheme", "Sunset 🌇" },
+                { "CyberpunkTheme", "Cyberpunk 🌈" },
+                { "ForestTheme", "Forest 🌿" },
+                { "ArcticTheme", "Arctic ❄️" },
+                { "HalloweenTheme", "Halloween 🎃" },
+                { "ChristmasTheme", "Christmas 🎄" },
+                { "DiwaliTheme", "Diwali 🪔" },
+                { "HanukkahTheme", "Hanukkah 🕎" },
+                { "EidTheme", "Eid 🌙" },
+                { "LunarNewYearTheme", "Lunar New Year 🧧" },
+                { "EasterTheme", "Easter 🐣" },
+                { "NowruzTheme", "Nowruz 🌱" },
+                { "RamadanTheme", "Ramadan 🌙" },
+                { "PrideTheme", "Pride 🏳️‍🌈" }
+            };
+
+            // Remove themes that no longer exist
+            var themesToRemove = AvailableThemes.Where(t => !availableThemeNames.Contains(t.Name)).ToList();
+            foreach (var theme in themesToRemove)
+            {
+                System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: Removing theme {theme.Name}");
+                AvailableThemes.Remove(theme);
+            }
+
+            // Update existing themes and add new ones
+            int addedCount = 0;
+            int updatedCount = 0;
+            foreach (var themeName in availableThemeNames)
+            {
+                var existingTheme = AvailableThemes.FirstOrDefault(t => t.Name == themeName);
+                var isCustom = customThemeNames.Contains(themeName);
+
+                // Get display name
+                string displayName;
+                if (builtInThemeNames.TryGetValue(themeName, out var builtInName))
+                {
+                    displayName = isCustom ? $"{builtInName} ✏️" : builtInName;
+                }
+                else
+                {
+                    // Custom theme - try to load it to get the display name
+                    var theme = themeService.LoadThemeFromFile(themeName);
+                    if (theme != null)
+                    {
+                        displayName = $"{theme.DisplayName} ✏️";
+                    }
+                    else
+                    {
+                        displayName = themeName.Replace("Theme", "") + " ✏️";
+                    }
+                }
+
+                if (existingTheme != null)
+                {
+                    // Update display name
+                    existingTheme.DisplayName = displayName;
+                    updatedCount++;
+                }
+                else
+                {
+                    // Add new theme
+                    AvailableThemes.Add(new ThemeOption
+                    {
+                        Name = themeName,
+                        DisplayName = displayName
+                    });
+                    addedCount++;
+                    System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: Added theme {themeName} as '{displayName}'");
+                }
+            }
+
+            System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: Added {addedCount}, Updated {updatedCount}, Total themes: {AvailableThemes.Count}");
+
+            // Sort: custom themes first, then alphabetically
+            var sortedThemes = AvailableThemes.OrderByDescending(t => t.DisplayName.Contains("✏️"))
+                .ThenBy(t => t.DisplayName.Replace(" ✏️", ""))
+                .ToList();
+
+            AvailableThemes.Clear();
+            foreach (var theme in sortedThemes)
+            {
+                AvailableThemes.Add(theme);
+            }
+
+            System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: After sorting, have {AvailableThemes.Count} themes");
+
+            // Restore previous selection if it still exists
+            if (!string.IsNullOrEmpty(currentSelection))
+            {
+                var previousTheme = AvailableThemes.FirstOrDefault(t => t.Name == currentSelection);
+                if (previousTheme != null)
+                {
+                    SelectedTheme = previousTheme;
+                    System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: Restored selection to {currentSelection}");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: Could not restore selection {currentSelection}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: ERROR - {ex.Message}");
+            StatusMessage = $"Error refreshing themes: {ex.Message}";
+        }
+    }
+
+    private void InitializeAvailableThemes()
+    {
+        // Use RefreshAvailableThemes to properly load all themes with custom indicators
+        RefreshAvailableThemes();
+    }
 
  [ObservableProperty]
  private ThemeOption? _selectedTheme;
@@ -177,6 +302,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
  private void Initialize()
  {
+ // Initialize available themes
+ InitializeAvailableThemes();
+
  if (_midiService != null)
  {
  _midiService.ControlChangeReceived += OnMidiControlChange;
@@ -245,22 +373,72 @@ public partial class MainWindowViewModel : ViewModelBase
  // Theme will be loaded from config or default to DarkTheme
  if (SelectedTheme == null)
  {
+ // Try to find DarkTheme first
  SelectedTheme = AvailableThemes.FirstOrDefault(t => t.Name == "DarkTheme");
+
+ // If DarkTheme not found, use any available theme
+ if (SelectedTheme == null)
+ {
+ SelectedTheme = AvailableThemes.FirstOrDefault();
+ }
+
+ // Apply the theme if we found one
+ if (SelectedTheme != null)
+ {
  ApplyTheme(SelectedTheme);
+ }
+ else
+ {
+ System.Diagnostics.Debug.WriteLine("Warning: No themes available!");
+ StatusMessage = "Warning: No themes available. Please check theme installation.";
+ }
  }
  UpdateWindowSize();
  }
- partial void OnSelectedThemeChanged(ThemeOption? value)
+ partial void OnSelectedThemeChanged(ThemeOption? oldValue, ThemeOption? newValue)
  {
- if (value != null)
- ApplyTheme(value);
+ if (newValue != null)
+ {
+ System.Diagnostics.Debug.WriteLine($"Theme changing from {oldValue?.Name} to {newValue.Name}");
+ ApplyTheme(newValue);
+ }
  }
 
- private void ApplyTheme(ThemeOption theme)
+ private void ApplyTheme(ThemeOption? theme)
  {
  try
  {
+ if (theme == null)
+ {
+ System.Diagnostics.Debug.WriteLine("ApplyTheme called with null theme, ignoring");
+ return;
+ }
+
+ System.Diagnostics.Debug.WriteLine($"Applying theme: {theme.Name}");
+
+ // Clear all resource dictionaries to ensure clean slate
  Application.Current.Resources.MergedDictionaries.Clear();
+
+ // Clear individual theme resources that might have been set by live preview
+ var themeKeys = new[]
+ {
+ "BackgroundColor", "SurfaceColor", "SurfaceHighlightColor",
+ "PrimaryColor", "PrimaryDarkColor", "AccentColor",
+ "TextPrimaryColor", "TextSecondaryColor", "BorderColor",
+ "ErrorColor", "WarningColor", "SuccessColor",
+ "BackgroundBrush", "SurfaceBrush", "SurfaceHighlightBrush",
+ "PrimaryBrush", "PrimaryDarkBrush", "AccentBrush",
+ "TextPrimaryBrush", "TextSecondaryBrush", "TextBrush",
+ "BorderBrush", "ErrorBrush", "WarningBrush", "SuccessBrush"
+ };
+
+ foreach (var key in themeKeys)
+ {
+ if (Application.Current.Resources.Contains(key))
+ {
+ Application.Current.Resources.Remove(key);
+ }
+ }
 
  // Base styles
  var baseStyles = new ResourceDictionary
@@ -269,17 +447,40 @@ public partial class MainWindowViewModel : ViewModelBase
  };
  Application.Current.Resources.MergedDictionaries.Add(baseStyles);
 
- // Selected theme
- var themeDict = new ResourceDictionary
+ // Try to load theme from physical file first (user-created themes in AppData)
+ var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+ var physicalThemePath = Path.Combine(appDataPath, "Mideej", "Themes", $"{theme.Name}.xaml");
+
+ ResourceDictionary? themeDict = null;
+
+ if (File.Exists(physicalThemePath))
+ {
+ // Load from physical file
+ themeDict = new ResourceDictionary
+ {
+ Source = new Uri(physicalThemePath, UriKind.Absolute)
+ };
+ }
+ else
+ {
+ // Load from embedded resource (built-in themes)
+ themeDict = new ResourceDictionary
  {
  Source = new Uri($"pack://application:,,,/Themes/{theme.Name}.xaml", UriKind.Absolute)
  };
+ }
+
  Application.Current.Resources.MergedDictionaries.Add(themeDict);
 
+ System.Diagnostics.Debug.WriteLine($"Theme applied successfully: {theme.Name}");
  StatusMessage = $"Theme applied: {theme.DisplayName}";
+
+ // Force UI refresh
+ Application.Current.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render);
  }
  catch (Exception ex)
  {
+ System.Diagnostics.Debug.WriteLine($"Error applying theme: {ex.Message}");
  StatusMessage = $"Error applying theme: {ex.Message}";
  }
  }
