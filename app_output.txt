@@ -1,0 +1,883 @@
+Found 2 MIDI device(s):
+  - [0] SMC-Mixer
+  - [1] MIDIIN2 (SMC-Mixer)
+TIP: If you see multiple devices, choose the one with 'MIDIIN' in the name for input.
+Font scale applied: 1x (Base: 12, Normal: 14, Title: 24)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (from pending config)
+Relinked 1 sessions to Spotify (from pending config)
+Relinked 1 sessions to Google Chrome (from pending config)
+Relinked 1 sessions to discord (from pending config)
+Relinked 1 sessions to msedge (from pending config)
+Relinked 1 sessions to Microphone (Shure MV7+) (from pending config)
+Relinked 0 sessions to Channel 7 (from pending config)
+Relinked 1 sessions to Headphones (Shure MV7+) (from pending config)
+Added to Windows startup: rundll32.exe dfshim.dll,ShOpenVerbShortcut "C:\Users\jimmy\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Mideej\Mideej.appref-ms"
+Attempting to connect to MIDI device: MIDIIN2 (SMC-Mixer) (ID: 1)
+MIDI Output initialized for 'MIDIIN2 (SMC-Mixer)' at index 1
+MIDI Input started for device 1 ('MIDIIN2 (SMC-Mixer)')
+Successfully connected to MIDIIN2 (SMC-Mixer)
+Listening for MIDI messages...
+?? Playing startup animation...
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Sent MIDI NoteOn: Ch0 Note8 Vel127
+Sent MIDI NoteOn: Ch0 Note16 Vel127
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Sent MIDI NoteOn: Ch0 Note24 Vel127
+Sent MIDI NoteOn: Ch0 Note25 Vel127
+Sent MIDI NoteOn: Ch0 Note26 Vel127
+Sent MIDI NoteOn: Ch0 Note28 Vel127
+Sent MIDI NoteOn: Ch0 Note1 Vel127
+Sent MIDI NoteOn: Ch0 Note9 Vel127
+Sent MIDI NoteOn: Ch0 Note17 Vel127
+Sent MIDI NoteOn: Ch0 Note0 Vel0
+Sent MIDI NoteOn: Ch0 Note8 Vel0
+Sent MIDI NoteOn: Ch0 Note16 Vel0
+Sent MIDI NoteOn: Ch0 Note2 Vel127
+Sent MIDI NoteOn: Ch0 Note10 Vel127
+Sent MIDI NoteOn: Ch0 Note18 Vel127
+Sent MIDI NoteOn: Ch0 Note1 Vel0
+Sent MIDI NoteOn: Ch0 Note9 Vel0
+Sent MIDI NoteOn: Ch0 Note17 Vel0
+Sent MIDI NoteOn: Ch0 Note3 Vel127
+Sent MIDI NoteOn: Ch0 Note11 Vel127
+Sent MIDI NoteOn: Ch0 Note19 Vel127
+Sent MIDI NoteOn: Ch0 Note2 Vel0
+Sent MIDI NoteOn: Ch0 Note10 Vel0
+Sent MIDI NoteOn: Ch0 Note18 Vel0
+Sent MIDI NoteOn: Ch0 Note4 Vel127
+Sent MIDI NoteOn: Ch0 Note12 Vel127
+Sent MIDI NoteOn: Ch0 Note20 Vel127
+Sent MIDI NoteOn: Ch0 Note3 Vel0
+Sent MIDI NoteOn: Ch0 Note11 Vel0
+Sent MIDI NoteOn: Ch0 Note19 Vel0
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Sent MIDI NoteOn: Ch0 Note13 Vel127
+Sent MIDI NoteOn: Ch0 Note21 Vel127
+Sent MIDI NoteOn: Ch0 Note4 Vel0
+Sent MIDI NoteOn: Ch0 Note12 Vel0
+Sent MIDI NoteOn: Ch0 Note20 Vel0
+Sent MIDI NoteOn: Ch0 Note6 Vel127
+Sent MIDI NoteOn: Ch0 Note14 Vel127
+Sent MIDI NoteOn: Ch0 Note22 Vel127
+Sent MIDI NoteOn: Ch0 Note5 Vel0
+Sent MIDI NoteOn: Ch0 Note13 Vel0
+Sent MIDI NoteOn: Ch0 Note21 Vel0
+Sent MIDI NoteOn: Ch0 Note7 Vel127
+Sent MIDI NoteOn: Ch0 Note15 Vel127
+Sent MIDI NoteOn: Ch0 Note23 Vel127
+Sent MIDI NoteOn: Ch0 Note6 Vel0
+Sent MIDI NoteOn: Ch0 Note14 Vel0
+Sent MIDI NoteOn: Ch0 Note22 Vel0
+Sent MIDI NoteOn: Ch0 Note7 Vel0
+Sent MIDI NoteOn: Ch0 Note15 Vel0
+Sent MIDI NoteOn: Ch0 Note23 Vel0
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Sent MIDI NoteOn: Ch0 Note1 Vel127
+Sent MIDI NoteOn: Ch0 Note2 Vel127
+Sent MIDI NoteOn: Ch0 Note3 Vel127
+Sent MIDI NoteOn: Ch0 Note4 Vel127
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Sent MIDI NoteOn: Ch0 Note6 Vel127
+Sent MIDI NoteOn: Ch0 Note7 Vel127
+Sent MIDI NoteOn: Ch0 Note8 Vel127
+Sent MIDI NoteOn: Ch0 Note9 Vel127
+Sent MIDI NoteOn: Ch0 Note10 Vel127
+Sent MIDI NoteOn: Ch0 Note11 Vel127
+Sent MIDI NoteOn: Ch0 Note12 Vel127
+Sent MIDI NoteOn: Ch0 Note13 Vel127
+Sent MIDI NoteOn: Ch0 Note14 Vel127
+Sent MIDI NoteOn: Ch0 Note15 Vel127
+Sent MIDI NoteOn: Ch0 Note16 Vel127
+Sent MIDI NoteOn: Ch0 Note17 Vel127
+Sent MIDI NoteOn: Ch0 Note18 Vel127
+Sent MIDI NoteOn: Ch0 Note19 Vel127
+Sent MIDI NoteOn: Ch0 Note20 Vel127
+Sent MIDI NoteOn: Ch0 Note21 Vel127
+Sent MIDI NoteOn: Ch0 Note22 Vel127
+Sent MIDI NoteOn: Ch0 Note23 Vel127
+Sent MIDI NoteOn: Ch0 Note0 Vel0
+Sent MIDI NoteOn: Ch0 Note1 Vel0
+Sent MIDI NoteOn: Ch0 Note2 Vel0
+Sent MIDI NoteOn: Ch0 Note3 Vel0
+Sent MIDI NoteOn: Ch0 Note4 Vel0
+Sent MIDI NoteOn: Ch0 Note5 Vel0
+Sent MIDI NoteOn: Ch0 Note6 Vel0
+Sent MIDI NoteOn: Ch0 Note7 Vel0
+Sent MIDI NoteOn: Ch0 Note8 Vel0
+Sent MIDI NoteOn: Ch0 Note9 Vel0
+Sent MIDI NoteOn: Ch0 Note10 Vel0
+Sent MIDI NoteOn: Ch0 Note11 Vel0
+Sent MIDI NoteOn: Ch0 Note12 Vel0
+Sent MIDI NoteOn: Ch0 Note13 Vel0
+Sent MIDI NoteOn: Ch0 Note14 Vel0
+Sent MIDI NoteOn: Ch0 Note15 Vel0
+Sent MIDI NoteOn: Ch0 Note16 Vel0
+Sent MIDI NoteOn: Ch0 Note17 Vel0
+Sent MIDI NoteOn: Ch0 Note18 Vel0
+Sent MIDI NoteOn: Ch0 Note19 Vel0
+Sent MIDI NoteOn: Ch0 Note20 Vel0
+Sent MIDI NoteOn: Ch0 Note21 Vel0
+Sent MIDI NoteOn: Ch0 Note22 Vel0
+Sent MIDI NoteOn: Ch0 Note23 Vel0
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Sent MIDI NoteOn: Ch0 Note1 Vel127
+Sent MIDI NoteOn: Ch0 Note2 Vel127
+Sent MIDI NoteOn: Ch0 Note3 Vel127
+Sent MIDI NoteOn: Ch0 Note4 Vel127
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Sent MIDI NoteOn: Ch0 Note6 Vel127
+Sent MIDI NoteOn: Ch0 Note7 Vel127
+Sent MIDI NoteOn: Ch0 Note8 Vel127
+Sent MIDI NoteOn: Ch0 Note9 Vel127
+Sent MIDI NoteOn: Ch0 Note10 Vel127
+Sent MIDI NoteOn: Ch0 Note11 Vel127
+Sent MIDI NoteOn: Ch0 Note12 Vel127
+Sent MIDI NoteOn: Ch0 Note13 Vel127
+Sent MIDI NoteOn: Ch0 Note14 Vel127
+Sent MIDI NoteOn: Ch0 Note15 Vel127
+Sent MIDI NoteOn: Ch0 Note16 Vel127
+Sent MIDI NoteOn: Ch0 Note17 Vel127
+Sent MIDI NoteOn: Ch0 Note18 Vel127
+Sent MIDI NoteOn: Ch0 Note19 Vel127
+Sent MIDI NoteOn: Ch0 Note20 Vel127
+Sent MIDI NoteOn: Ch0 Note21 Vel127
+Sent MIDI NoteOn: Ch0 Note22 Vel127
+Sent MIDI NoteOn: Ch0 Note23 Vel127
+Sent MIDI NoteOn: Ch0 Note0 Vel0
+Sent MIDI NoteOn: Ch0 Note1 Vel0
+Sent MIDI NoteOn: Ch0 Note2 Vel0
+Sent MIDI NoteOn: Ch0 Note3 Vel0
+Sent MIDI NoteOn: Ch0 Note4 Vel0
+Sent MIDI NoteOn: Ch0 Note5 Vel0
+Sent MIDI NoteOn: Ch0 Note6 Vel0
+Sent MIDI NoteOn: Ch0 Note7 Vel0
+Sent MIDI NoteOn: Ch0 Note8 Vel0
+Sent MIDI NoteOn: Ch0 Note9 Vel0
+Sent MIDI NoteOn: Ch0 Note10 Vel0
+Sent MIDI NoteOn: Ch0 Note11 Vel0
+Sent MIDI NoteOn: Ch0 Note12 Vel0
+Sent MIDI NoteOn: Ch0 Note13 Vel0
+Sent MIDI NoteOn: Ch0 Note14 Vel0
+Sent MIDI NoteOn: Ch0 Note15 Vel0
+Sent MIDI NoteOn: Ch0 Note16 Vel0
+Sent MIDI NoteOn: Ch0 Note17 Vel0
+Sent MIDI NoteOn: Ch0 Note18 Vel0
+Sent MIDI NoteOn: Ch0 Note19 Vel0
+Sent MIDI NoteOn: Ch0 Note20 Vel0
+Sent MIDI NoteOn: Ch0 Note21 Vel0
+Sent MIDI NoteOn: Ch0 Note22 Vel0
+Sent MIDI NoteOn: Ch0 Note23 Vel0
+? Startup animation complete!
+Sent MIDI NoteOn: Ch0 Note16 Vel0
+Mute LED feedback sent for Speakers (Realtek(R) Audio): OFF
+Sent MIDI NoteOn: Ch0 Note8 Vel0
+Solo LED feedback sent for Speakers (Realtek(R) Audio): OFF
+Sent MIDI NoteOn: Ch0 Note17 Vel0
+Mute LED feedback sent for Spotify: OFF
+Sent MIDI NoteOn: Ch0 Note9 Vel127
+Solo LED feedback sent for Spotify: ON
+Sent MIDI NoteOn: Ch0 Note18 Vel0
+Mute LED feedback sent for Google Chrome: OFF
+Sent MIDI NoteOn: Ch0 Note10 Vel0
+Solo LED feedback sent for Google Chrome: OFF
+Sent MIDI NoteOn: Ch0 Note19 Vel0
+Mute LED feedback sent for discord: OFF
+Sent MIDI NoteOn: Ch0 Note11 Vel0
+Solo LED feedback sent for discord: OFF
+Sent MIDI NoteOn: Ch0 Note20 Vel0
+Mute LED feedback sent for msedge: OFF
+Sent MIDI NoteOn: Ch0 Note12 Vel0
+Solo LED feedback sent for msedge: OFF
+Sent MIDI NoteOn: Ch0 Note21 Vel0
+Mute LED feedback sent for Microphone (Shure MV7+): OFF
+Sent MIDI NoteOn: Ch0 Note13 Vel0
+Solo LED feedback sent for Microphone (Shure MV7+): OFF
+Sent MIDI NoteOn: Ch0 Note22 Vel0
+Mute LED feedback sent for Channel 7: OFF
+Sent MIDI NoteOn: Ch0 Note14 Vel0
+Solo LED feedback sent for Channel 7: OFF
+Sent MIDI NoteOn: Ch0 Note23 Vel0
+Mute LED feedback sent for Headphones (Shure MV7+): OFF
+Sent MIDI NoteOn: Ch0 Note15 Vel0
+Solo LED feedback sent for Headphones (Shure MV7+): OFF
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Sent MIDI NoteOn: Ch0 Note24 Vel0
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Sent MIDI NoteOn: Ch0 Note25 Vel0
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Sent MIDI NoteOn: Ch0 Note25 Vel127
+Sent MIDI NoteOn: Ch0 Note24 Vel127
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)
+Relinked 1 sessions to Speakers (Realtek(R) Audio) (dynamic refresh)
+Relinked 1 sessions to Spotify (dynamic refresh)
+Relinked 1 sessions to Google Chrome (dynamic refresh)
+Relinked 1 sessions to discord (dynamic refresh)
+Relinked 1 sessions to msedge (dynamic refresh)
+Relinked 1 sessions to Microphone (Shure MV7+) (dynamic refresh)
+Relinked 0 sessions to Channel 7 (dynamic refresh)
+Relinked 1 sessions to Headphones (Shure MV7+) (dynamic refresh)
+Sent MIDI NoteOn: Ch0 Note0 Vel127
+Record LED feedback sent for Speakers (Realtek(R) Audio): ON
+Lit Record LED for default output: Speakers (Realtek(R) Audio)
+Sent MIDI NoteOn: Ch0 Note5 Vel127
+Record LED feedback sent for Microphone (Shure MV7+): ON
+Lit Record LED for default input: Microphone (Shure MV7+)

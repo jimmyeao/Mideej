@@ -5,7 +5,14 @@
       "Bash(dotnet add:*)",
       "Bash(dotnet build:*)",
       "Bash(dotnet run:*)",
-      "WebFetch(domain:private-user-images.githubusercontent.com)"
+      "WebFetch(domain:private-user-images.githubusercontent.com)",
+      "Bash(dir \"C:\\Users\\jimmy\\source\\repos\\DeejNG\" /s /b)",
+      "Bash(taskkill:*)",
+      "Bash(findstr:*)",
+      "Bash(dir:*)",
+      "Bash(del \"C:\\Users\\jimmy\\source\\repos\\Mideej\\MIDI_TROUBLESHOOTING.md\" \"C:\\Users\\jimmy\\source\\repos\\Mideej\\MACKIE_MODE_SUPPORT.md\" \"C:\\Users\\jimmy\\source\\repos\\Mideej\\FIXES_SUMMARY.md\" \"C:\\Users\\jimmy\\source\\repos\\Mideej\\BUTTON_MAPPING_GUIDE.md\" \"C:\\Users\\jimmy\\source\\repos\\Mideej\\NEW_MAPPING_SYSTEM.md\" \"C:\\Users\\jimmy\\source\\repos\\Mideej\\MEDIA_STATE_MONITORING.md\" \"C:\\Users\\jimmy\\source\\repos\\Mideej\\CONFIG_BACKUP_SYSTEM.md\" \"C:\\Users\\jimmy\\source\\repos\\Mideej\\COMPLETED_FEATURES.md\")",
+      "Bash(del \"C:\\Users\\jimmy\\source\\repos\\Mideej\\DEEJNG_PATTERNS.md\" \"C:\\Users\\jimmy\\source\\repos\\Mideej\\DEEJNG_DEEP_ANALYSIS.md\" \"C:\\Users\\jimmy\\source\\repos\\Mideej\\README_DEEJNG_STUDY.md\" \"C:\\Users\\jimmy\\source\\repos\\Mideej\\ANALYSIS_INDEX.md\" \"C:\\Users\\jimmy\\source\\repos\\Mideej\\INDEX_DEEJNG_ANALYSIS.md\")",
+      "Bash(del \"C:\\Users\\jimmy\\source\\repos\\Mideej\\DEEJNG_ANALYSIS_SUMMARY.txt\" \"C:\\Users\\jimmy\\source\\repos\\Mideej\\session_dedup_summary.txt\" \"C:\\Users\\jimmy\\source\\repos\\Mideej\\DEEJNG_SESSION_DEDUP_ANALYSIS.txt\")"
     ],
     "deny": [],
     "ask": []

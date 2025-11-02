@@ -61,6 +61,26 @@ public interface IAudioSessionManager
     /// Sets the VU meter update interval in milliseconds
     /// </summary>
     void SetVuMeterUpdateInterval(int intervalMs);
+
+    /// <summary>
+    /// Gets the session ID of the current default playback device
+    /// </summary>
+    string? GetDefaultPlaybackDeviceId();
+
+    /// <summary>
+    /// Gets the session ID of the current default recording device
+    /// </summary>
+    string? GetDefaultRecordingDeviceId();
+
+    /// <summary>
+    /// Sets the default playback device by session ID
+    /// </summary>
+    bool SetDefaultPlaybackDevice(string sessionId);
+
+    /// <summary>
+    /// Sets the default recording device by session ID
+    /// </summary>
+    bool SetDefaultRecordingDevice(string sessionId);
 }
 
 /// <summary>
