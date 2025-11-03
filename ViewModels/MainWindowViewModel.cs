@@ -2234,15 +2234,24 @@ public partial class MainWindowViewModel : ViewModelBase
  /// Turns off all LEDs on the connected MIDI controller(s).
  /// Sends both Note and CC off for known mappings and resets common MIDI controllers.
  /// </summary>
- private void TurnOffAllLeds()
+ public void TurnOffAllLeds()
  {
  try
  {
  // Allow cleanup even if IsMidiConnected is already false due to teardown
  if (_midiService == null)
+ {
+ Console.WriteLine("[TurnOffAllLeds] MidiService is null, skipping LED cleanup");
  return;
+ }
 
- Console.WriteLine("Turning off all controller LEDs...");
+ if (!_midiService.IsConnected)
+ {
+ Console.WriteLine("[TurnOffAllLeds] MIDI not connected, skipping LED cleanup");
+ return;
+ }
+
+ Console.WriteLine("[TurnOffAllLeds] Turning off all controller LEDs...");
 
  // Send global resets on all MIDI channels (0-15) to be thorough
  for (int ch =0; ch <16; ch++)
@@ -2252,6 +2261,8 @@ public partial class MainWindowViewModel : ViewModelBase
  _midiService.SendControlChange(ch,121,0);
  _midiService.SendControlChange(ch,123,0);
  }
+
+ Console.WriteLine($"[TurnOffAllLeds] Sent global reset commands on 16 channels");
 
  // Turn off all mapped LEDs explicitly (Note and CC), and send NoteOff too
  foreach (var mapping in _midiMappings.Values)
@@ -2270,16 +2281,19 @@ public partial class MainWindowViewModel : ViewModelBase
  name.Contains("M-Vave", StringComparison.OrdinalIgnoreCase) ||
  name.Contains("SINCO", StringComparison.OrdinalIgnoreCase))
  {
+ Console.WriteLine($"[TurnOffAllLeds] Detected M-Vave/SMC controller, turning off matrix LEDs");
  for (int note =0x00; note <=0x17; note++)
  {
  _midiService.SendNoteOn(0, note,0);
  _midiService.SendNoteOff(0, note);
  }
  }
+
+ Console.WriteLine("[TurnOffAllLeds] LED cleanup completed successfully");
  }
  catch (Exception ex)
  {
- Console.WriteLine($"Error while turning off LEDs: {ex.Message}");
+ Console.WriteLine($"[TurnOffAllLeds] Error while turning off LEDs: {ex.Message}");
  }
  }
 
@@ -2391,10 +2405,8 @@ public partial class MainWindowViewModel : ViewModelBase
  var target = ResolveStartupTargetPath();
  if (!string.IsNullOrEmpty(target))
  {
- // Use dfshim for ClickOnce appref-ms for reliability; otherwise run the exe directly
- string startupValue = target.EndsWith(".appref-ms", StringComparison.OrdinalIgnoreCase)
- ? $"rundll32.exe dfshim.dll,ShOpenVerbShortcut \"{target}\""
- : $"\"{target}\"";
+ // Set the direct path to the executable or .appref-ms file
+ string startupValue = $"\"{target}\"";
  startupKey.SetValue(appName, startupValue);
  Console.WriteLine($"Added to Windows startup: {startupValue}");
  }
@@ -2760,16 +2772,41 @@ public partial class MainWindowViewModel : ViewModelBase
  }
 
  /// <summary>
- /// Syncs the channel's UI state with the actual audio session state
+ /// Syncs the channel's UI state with the actual audio session state.
+ /// For master_output: sync FROM session TO channel.
+ /// For other sessions: apply channel state TO sessions to maintain consistency.
  /// </summary>
  private void SyncChannelStateFromSession(ChannelViewModel channel)
 {
-        // Find master_output session and sync its mute state
+        // Find master_output session and sync its mute state FROM session TO channel
         var masterSession = channel.AssignedSessions.FirstOrDefault(s => s.SessionId == "master_output");
         if (masterSession != null)
         {
             channel.IsMuted = masterSession.IsMuted;
-            Console.WriteLine($"Synced {channel.Name} mute state: {masterSession.IsMuted}");
+            Console.WriteLine($"Synced {channel.Name} mute state from master_output: {masterSession.IsMuted}");
+        }
+        else
+        {
+            // For non-master channels, apply the channel's stored state TO the newly relinked sessions
+            // This ensures that when apps like Spotify create new sessions (e.g., on track change),
+            // they inherit the channel's mute state
+            if (channel.AssignedSessions.Count > 0)
+            {
+                // Apply mute state to all assigned sessions
+                foreach (var session in channel.AssignedSessions)
+                {
+                    if (_audioSessionManager != null)
+                    {
+                        // Only apply if the channel has a defined mute state
+                        // This preserves mute state across session recreation
+                        if (channel.IsMuted)
+                        {
+                            _audioSessionManager.SetSessionMute(session.SessionId, true);
+                            Console.WriteLine($"Applied mute state to relinked session: {session.DisplayName} in {channel.Name}");
+                        }
+                    }
+                }
+            }
         }
     }
 

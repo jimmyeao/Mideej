@@ -14,8 +14,10 @@ namespace Mideej.Controls
         private byte _blueValue;
         private string _hexValue = "#FFFFFF";
         private bool _isUpdating;
+        private bool _enableLivePreview;
 
         public event PropertyChangedEventHandler? PropertyChanged;
+        public event EventHandler<Color>? ColorChanged;
 
         public Color SelectedColor
         {
@@ -87,6 +89,12 @@ namespace Mideej.Controls
             }
         }
 
+        public bool EnableLivePreview
+        {
+            get => _enableLivePreview;
+            set => _enableLivePreview = value;
+        }
+
         public ColorPickerDialog()
         {
             InitializeComponent();
@@ -128,6 +136,12 @@ namespace Mideej.Controls
 
                 OnPropertyChanged(nameof(SelectedColor));
                 OnPropertyChanged(nameof(HexValue));
+
+                // Fire live preview event
+                if (EnableLivePreview)
+                {
+                    ColorChanged?.Invoke(this, _selectedColor);
+                }
             }
             finally
             {
@@ -154,6 +168,12 @@ namespace Mideej.Controls
                     OnPropertyChanged(nameof(RedValue));
                     OnPropertyChanged(nameof(GreenValue));
                     OnPropertyChanged(nameof(BlueValue));
+
+                    // Fire live preview event
+                    if (EnableLivePreview)
+                    {
+                        ColorChanged?.Invoke(this, _selectedColor);
+                    }
                 }
             }
             catch

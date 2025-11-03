@@ -40,28 +40,14 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
         try
         {
-            // Dispose old cached devices to prevent COM memory leak
-            foreach (var device in _cachedDevices.Values)
-            {
-                try
-                {
-                    device?.Dispose();
-                }
-                catch { /* Ignore disposal errors */ }
-            }
+            // Clear old cached devices - let .NET handle disposal naturally
+            // Do NOT call Dispose() on devices that are still active in the system
             _cachedDevices.Clear();
 
-            // CRITICAL: Release COM objects for AudioSessionControl to prevent leaks
-            // This prevents breaking other applications' VU meters
-            foreach (var session in _cachedAppSessions.Values)
-            {
-                try
-                {
-                    if (session != null)
-                        Marshal.FinalReleaseComObject(session);
-                }
-                catch { /* Ignore release errors */ }
-            }
+            // Clear old session references - DO NOT use FinalReleaseComObject!
+            // FinalReleaseComObject breaks the Windows Audio system by forcefully
+            // releasing COM objects that the audio service may still be using.
+            // Just clear the dictionary and let the GC handle cleanup naturally.
             _cachedAppSessions.Clear();
 
             // Get default device fresh every time (like DeejNG)
@@ -492,7 +478,8 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 if (cachedSession == null)
                 {
                     _cachedAppSessions.Remove(sessionId);
-                    return 0f;
+                    // Try to re-find the session before giving up
+                    return GetPeakLevelByEnumeration(sessionId);
                 }
 
                 try
@@ -501,34 +488,103 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                     if (meterInfo == null)
                     {
                         _cachedAppSessions.Remove(sessionId);
-                        return 0f;
+                        // Try to re-find the session before giving up
+                        return GetPeakLevelByEnumeration(sessionId);
                     }
 
                     return meterInfo.MasterPeakValue;
                 }
                 catch (ArgumentException)
                 {
-                    // Session is disconnected/invalid - remove from cache
+                    // Session is disconnected/invalid - remove from cache and try to re-find
                     _cachedAppSessions.Remove(sessionId);
-                    return 0f;
+                    return GetPeakLevelByEnumeration(sessionId);
                 }
                 catch (InvalidComObjectException)
                 {
-                    // COM object is invalid - remove from cache
+                    // COM object is invalid - remove from cache and try to re-find
                     _cachedAppSessions.Remove(sessionId);
-                    return 0f;
+                    return GetPeakLevelByEnumeration(sessionId);
                 }
                 catch
                 {
-                    // Any other error - remove from cache
+                    // Any other error - remove from cache and try to re-find
                     _cachedAppSessions.Remove(sessionId);
-                    return 0f;
+                    return GetPeakLevelByEnumeration(sessionId);
                 }
             }
+
+            // Session not in cache, try to find it by enumeration
+            return GetPeakLevelByEnumeration(sessionId);
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"[GetSessionPeakLevel] Unexpected error for {sessionId}: {ex.GetType().Name} - {ex.Message}");
+        }
+
+        return 0f;
+    }
+
+    /// <summary>
+    /// Fallback method to get peak level by re-enumerating sessions.
+    /// Used when cached session becomes invalid (e.g., after long pause).
+    /// Does NOT re-cache the session - that will happen on the next GetActiveSessions() call (every 2 seconds).
+    /// </summary>
+    private float GetPeakLevelByEnumeration(string sessionId)
+    {
+        try
+        {
+            if (!sessionId.StartsWith("app_"))
+                return 0f;
+
+            var parts = sessionId.Split('_', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 3) // Need at least: app, processname, pid
+                return 0f;
+
+            string processName = parts[1];
+            if (string.IsNullOrWhiteSpace(processName))
+                return 0f;
+
+            // Process name from cache is already lowercase without extension
+            string targetName = processName.ToLowerInvariant();
+
+            using var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            var sessions = device.AudioSessionManager.Sessions;
+
+            for (int i = 0; i < sessions.Count; i++)
+            {
+                try
+                {
+                    var session = sessions[i];
+                    int pid = (int)session.GetProcessID;
+                    if (pid < 100) continue;
+
+                    string procName = ProcessNameCache.GetProcessName(pid);
+                    if (string.IsNullOrWhiteSpace(procName))
+                        continue;
+
+                    // ProcessNameCache already returns lowercase without extension
+                    if (IsProcessNameMatch(procName, targetName))
+                    {
+                        // Found the session - return peak level
+                        // Don't re-cache here as the device is being disposed
+                        // The session will be properly re-cached on the next GetActiveSessions() call
+                        var peak = session.AudioMeterInformation.MasterPeakValue;
+                        Debug.WriteLine($"[GetPeakLevelByEnumeration] Found session {procName}, peak: {peak}");
+                        return peak;
+                    }
+                }
+                catch (Exception innerEx)
+                {
+                    Debug.WriteLine($"[GetPeakLevelByEnumeration] Inner error: {innerEx.Message}");
+                }
+            }
+
+            Debug.WriteLine($"[GetPeakLevelByEnumeration] No matching session found for {targetName}");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[GetPeakLevelByEnumeration] Error for {sessionId}: {ex.Message}");
         }
 
         return 0f;
@@ -890,30 +946,19 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         }
         _inputDeviceCaptures.Clear();
 
-        // Dispose all cached devices
-        foreach (var device in _cachedDevices.Values)
-        {
-            try
-            {
-                device?.Dispose();
-            }
-            catch { /* Ignore disposal errors */ }
-        }
+        // Clear cached devices - let .NET GC handle cleanup
         _cachedDevices.Clear();
 
-        // CRITICAL: Release COM objects for AudioSessionControl
-        foreach (var session in _cachedAppSessions.Values)
-        {
-            try
-            {
-                if (session != null)
-                    Marshal.FinalReleaseComObject(session);
-            }
-            catch { /* Ignore release errors */ }
-        }
+        // Clear cached sessions - DO NOT use FinalReleaseComObject!
+        // Let the .NET garbage collector handle COM cleanup naturally.
+        // FinalReleaseComObject can break the Windows Audio system.
         _cachedAppSessions.Clear();
 
         _deviceEnumerator?.Dispose();
+
+        // Force garbage collection to clean up COM objects
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
     }
 
     /// <summary>

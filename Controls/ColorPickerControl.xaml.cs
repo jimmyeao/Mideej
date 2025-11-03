@@ -69,15 +69,27 @@ namespace Mideej.Controls
 
         private void ColorButton_Click(object sender, RoutedEventArgs e)
         {
+            var originalColor = SelectedColor;
+
             var dialog = new ColorPickerDialog
             {
                 Owner = Window.GetWindow(this),
-                SelectedColor = SelectedColor
+                SelectedColor = SelectedColor,
+                EnableLivePreview = true
             };
 
-            if (dialog.ShowDialog() == true)
+            // Subscribe to color changes for live preview
+            dialog.ColorChanged += (s, newColor) =>
             {
-                SelectedColor = dialog.SelectedColor;
+                SelectedColor = newColor;
+            };
+
+            var result = dialog.ShowDialog();
+
+            // If cancelled, restore the original color
+            if (result != true)
+            {
+                SelectedColor = originalColor;
             }
         }
     }
