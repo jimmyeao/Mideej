@@ -10,6 +10,40 @@ using NAudio.Wave;
 namespace Mideej.Services;
 
 /// <summary>
+/// Tracks invalid session state with retry logic and auto-expiration
+/// </summary>
+internal class InvalidSessionInfo
+{
+    public int FailureCount { get; set; }
+    public DateTime LastFailureTime { get; set; }
+    public DateTime FirstFailureTime { get; set; }
+
+    public InvalidSessionInfo()
+    {
+        FailureCount = 1;
+        FirstFailureTime = DateTime.Now;
+        LastFailureTime = DateTime.Now;
+    }
+
+    /// <summary>
+    /// Check if this session should be blacklisted (3+ consecutive failures)
+    /// </summary>
+    public bool ShouldBlacklist => FailureCount >= 3;
+
+    /// <summary>
+    /// Check if this tracking info has expired (5 seconds since first failure)
+    /// Sessions are given a fresh chance after 5 seconds
+    /// </summary>
+    public bool IsExpired => (DateTime.Now - FirstFailureTime).TotalSeconds >= 5;
+
+    public void IncrementFailure()
+    {
+        FailureCount++;
+        LastFailureTime = DateTime.Now;
+    }
+}
+
+/// <summary>
 /// AudioSessionManager matching DeejNG's architecture for volume/mute operations.
 /// Session references are cached ONLY for VU meter readings (performance critical).
 /// Volume and mute operations ALWAYS enumerate fresh sessions by process name.
@@ -24,10 +58,11 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     private bool _isMonitoring;
     private List<AudioSessionInfo> _cachedSessions = new();
     private Dictionary<string, MMDevice> _cachedDevices = new();
-    private Dictionary<string, AudioSessionControl> _cachedAppSessions = new();
+    private MMDevice? _cachedDefaultDevice = null; // Cache the default device like DeejNG
+    private SessionCollection? _cachedSessionCollection = null; // Cache the SessionCollection like DeejNG (refreshed every 50ms)
+    private DateTime _lastSessionCollectionRefresh = DateTime.MinValue;
     private Dictionary<string, (WasapiCapture Capture, MMDevice Device)> _inputDeviceCaptures = new();
-    private HashSet<AudioSessionControl> _invalidSessions = new(); // Track sessions that are invalid
-    private int _refreshCount = 0; // Track refresh cycles for periodic cleanup
+    private Dictionary<string, InvalidSessionInfo> _invalidSessions = new(); // Track invalid sessions by instance ID with retry logic and auto-expiration
     
     public event EventHandler<AudioSessionChangedEventArgs>? SessionsChanged;
     public event EventHandler<SessionVolumeChangedEventArgs>? SessionVolumeChanged;
@@ -43,12 +78,6 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             // Clear old cached devices - let .NET handle disposal naturally
             // Do NOT call Dispose() on devices that are still active in the system
             _cachedDevices.Clear();
-
-            // Clear old session references - DO NOT use FinalReleaseComObject!
-            // FinalReleaseComObject breaks the Windows Audio system by forcefully
-            // releasing COM objects that the audio service may still be using.
-            // Just clear the dictionary and let the GC handle cleanup naturally.
-            _cachedAppSessions.Clear();
 
             // Get default device fresh every time (like DeejNG)
             var defaultDevice = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
@@ -82,6 +111,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             {
                 AudioSessionControl? session = null;
                 int pid = -1;
+                string? instanceId = null;
 
                 try
                 {
@@ -89,26 +119,55 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                     if (session == null)
                         continue;
 
-                    // Skip sessions we've already identified as invalid
-                    if (_invalidSessions.Contains(session))
-                        continue;
+                    // Try to get instance identifier first (for tracking purposes)
+                    try
+                    {
+                        instanceId = session.GetSessionInstanceIdentifier;
+                    }
+                    catch
+                    {
+                        // If we can't get instance ID, use index as fallback
+                        instanceId = $"session_index_{i}";
+                    }
+
+                    // Check if this session is in the invalid list
+                    if (_invalidSessions.TryGetValue(instanceId, out var invalidInfo))
+                    {
+                        // Check if the entry has expired (auto-retry after 5 seconds)
+                        if (invalidInfo.IsExpired)
+                        {
+                            // Give it another chance
+                            _invalidSessions.Remove(instanceId);
+                            Debug.WriteLine($"[GetActiveSessions] Retry expired blacklist entry: {instanceId}");
+                        }
+                        else if (invalidInfo.ShouldBlacklist)
+                        {
+                            // Skip this session - it's had 3+ failures and hasn't expired yet
+                            continue;
+                        }
+                        // Otherwise, let it through (1-2 failures, not blacklisted yet)
+                    }
 
                     // Try to get PID - this will throw ArgumentException if session is invalid/disconnected
                     pid = (int)session.GetProcessID;
                 }
                 catch (ArgumentException)
                 {
-                    // Session is in invalid/disconnected state, add to blacklist
-                    if (session != null)
-                        _invalidSessions.Add(session);
+                    // Session is in invalid/disconnected state, track the failure
+                    if (instanceId != null)
+                    {
+                        TrackSessionFailure(instanceId, "ArgumentException");
+                    }
                     continue;
                 }
                 catch (Exception ex)
                 {
-                    // Log unexpected errors only and blacklist
+                    // Log unexpected errors and track failure
                     Debug.WriteLine($"[GetActiveSessions] Unexpected error reading session {i}: {ex.GetType().Name} - {ex.Message}");
-                    if (session != null)
-                        _invalidSessions.Add(session);
+                    if (instanceId != null)
+                    {
+                        TrackSessionFailure(instanceId, ex.GetType().Name);
+                    }
                     continue;
                 }
 
@@ -122,19 +181,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                     if (string.IsNullOrEmpty(processName))
                         continue;
 
-                    // Create unique sessionId using session instance identifier (like DeejNG)
-                    // This handles cases where one process has multiple audio sessions (e.g., Chrome tabs)
-                    string instanceId = "";
-                    try
-                    {
-                        instanceId = session.GetSessionInstanceIdentifier;
-                    }
-                    catch
-                    {
-                        // Session might be invalid or disconnecting, use index as fallback
-                        instanceId = i.ToString();
-                    }
-
+                    // instanceId was already retrieved above, reuse it
                     string sessionId = $"app_{processName}_{pid}_{instanceId}";
 
                     // Skip if we've already seen this exact session
@@ -143,8 +190,15 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
                     seenSessionIds.Add(sessionId);
 
-                    // Cache the session reference for VU meter updates and fast volume/mute changes
-                    _cachedAppSessions[sessionId] = session;
+                    // Session is valid - clear it from invalid tracking if it was there
+                    if (instanceId != null && _invalidSessions.ContainsKey(instanceId))
+                    {
+                        _invalidSessions.Remove(instanceId);
+                        Debug.WriteLine($"[GetActiveSessions] Session recovered: {instanceId} ({processName})");
+                    }
+
+                    // Don't cache individual AudioSessionControl objects - they become stale
+                    // DeejNG approach: cache the SessionCollection and re-find sessions each time
 
                     // Extract friendly name, fallback to process name if empty
                     string displayName = "";
@@ -472,50 +526,80 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 return 0f;
             }
 
-            // Use cached application session for VU meters
-            if (_cachedAppSessions.TryGetValue(sessionId, out var cachedSession))
+            // DeejNG approach: Get fresh SessionCollection and find the session each time
+            // This avoids stale COM object issues
+            try
             {
-                if (cachedSession == null)
+                // Refresh SessionCollection every 50ms like DeejNG
+                if ((DateTime.Now - _lastSessionCollectionRefresh).TotalMilliseconds > 50)
                 {
-                    _cachedAppSessions.Remove(sessionId);
-                    // Try to re-find the session before giving up
-                    return GetPeakLevelByEnumeration(sessionId);
-                }
-
-                try
-                {
-                    var meterInfo = cachedSession.AudioMeterInformation;
-                    if (meterInfo == null)
+                    try
                     {
-                        _cachedAppSessions.Remove(sessionId);
-                        // Try to re-find the session before giving up
-                        return GetPeakLevelByEnumeration(sessionId);
-                    }
+                        // Cache the default device to avoid memory leaks
+                        if (_cachedDefaultDevice == null)
+                        {
+                            _cachedDefaultDevice = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                        }
 
-                    return meterInfo.MasterPeakValue;
+                        _cachedSessionCollection = _cachedDefaultDevice.AudioSessionManager.Sessions;
+                        _lastSessionCollectionRefresh = DateTime.Now;
+                    }
+                    catch
+                    {
+                        _cachedSessionCollection = null;
+                        _cachedDefaultDevice = null; // Clear cache on error
+                    }
                 }
-                catch (ArgumentException)
+
+                if (_cachedSessionCollection == null)
+                    return 0f;
+
+                // Extract process name from sessionId (format: app_{processName}_{pid}_{instanceId})
+                if (!sessionId.StartsWith("app_"))
+                    return 0f;
+
+                var parts = sessionId.Split('_', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 2)
+                    return 0f;
+
+                string processName = parts[1];
+                string cleanedTargetName = Path.GetFileNameWithoutExtension(processName).ToLowerInvariant();
+
+                // Find the session like DeejNG does
+                int maxSessions = Math.Min(_cachedSessionCollection.Count, 20);
+                for (int i = 0; i < maxSessions; i++)
                 {
-                    // Session is disconnected/invalid - remove from cache and try to re-find
-                    _cachedAppSessions.Remove(sessionId);
-                    return GetPeakLevelByEnumeration(sessionId);
-                }
-                catch (InvalidComObjectException)
-                {
-                    // COM object is invalid - remove from cache and try to re-find
-                    _cachedAppSessions.Remove(sessionId);
-                    return GetPeakLevelByEnumeration(sessionId);
-                }
-                catch
-                {
-                    // Any other error - remove from cache and try to re-find
-                    _cachedAppSessions.Remove(sessionId);
-                    return GetPeakLevelByEnumeration(sessionId);
+                    try
+                    {
+                        var session = _cachedSessionCollection[i];
+                        if (session == null) continue;
+
+                        int pid = (int)session.GetProcessID;
+                        if (pid < 100) continue;
+
+                        string procName = ProcessNameCache.GetProcessName(pid);
+                        if (string.IsNullOrEmpty(procName)) continue;
+
+                        string cleanedProcessName = Path.GetFileNameWithoutExtension(procName).ToLowerInvariant();
+
+                        // Fuzzy matching like DeejNG
+                        if (cleanedProcessName.Equals(cleanedTargetName, StringComparison.OrdinalIgnoreCase) ||
+                            cleanedProcessName.Contains(cleanedTargetName, StringComparison.OrdinalIgnoreCase) ||
+                            cleanedTargetName.Contains(cleanedProcessName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return session.AudioMeterInformation.MasterPeakValue;
+                        }
+                    }
+                    catch (ArgumentException) { continue; }
+                    catch { continue; }
                 }
             }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[GetSessionPeakLevel] Error finding session: {ex.Message}");
+            }
 
-            // Session not in cache, try to find it by enumeration
-            return GetPeakLevelByEnumeration(sessionId);
+            return 0f;
         }
         catch (Exception ex)
         {
@@ -739,12 +823,9 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         {
             try
             {
-                // Periodically clean the invalid session list (every 5 refresh cycles = ~10 seconds)
-                // This allows us to retry sessions that might have become valid
-                if (_refreshCount++ % 5 == 0)
-                {
-                    _invalidSessions.Clear();
-                }
+                // Clean up expired invalid session entries (auto-expire after 5 seconds)
+                // This gives sessions with temporary failures a fresh chance
+                CleanupExpiredInvalidSessions();
 
                 var sessions = GetActiveSessions();
                 _cachedSessions = sessions; // Cache for peak level updates
@@ -929,6 +1010,47 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         }
     }
 
+    /// <summary>
+    /// Track a session failure for the blacklist system with retry logic
+    /// </summary>
+    private void TrackSessionFailure(string instanceId, string errorType)
+    {
+        if (_invalidSessions.TryGetValue(instanceId, out var info))
+        {
+            // Existing entry - increment failure count
+            info.IncrementFailure();
+            Debug.WriteLine($"[TrackSessionFailure] {instanceId} failure #{info.FailureCount} ({errorType})");
+        }
+        else
+        {
+            // New entry
+            _invalidSessions[instanceId] = new InvalidSessionInfo();
+            Debug.WriteLine($"[TrackSessionFailure] {instanceId} first failure ({errorType})");
+        }
+    }
+
+    /// <summary>
+    /// Clean up expired entries from the invalid session tracking
+    /// Expired entries are automatically removed so sessions get a fresh chance
+    /// </summary>
+    private void CleanupExpiredInvalidSessions()
+    {
+        var expiredKeys = _invalidSessions
+            .Where(kvp => kvp.Value.IsExpired)
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        foreach (var key in expiredKeys)
+        {
+            _invalidSessions.Remove(key);
+        }
+
+        if (expiredKeys.Count > 0)
+        {
+            Debug.WriteLine($"[CleanupExpiredInvalidSessions] Removed {expiredKeys.Count} expired entries");
+        }
+    }
+
     public void Dispose()
     {
         StopMonitoring();
@@ -949,10 +1071,11 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         // Clear cached devices - let .NET GC handle cleanup
         _cachedDevices.Clear();
 
-        // Clear cached sessions - DO NOT use FinalReleaseComObject!
+        // Clear cached SessionCollection and device - DO NOT use FinalReleaseComObject!
         // Let the .NET garbage collector handle COM cleanup naturally.
         // FinalReleaseComObject can break the Windows Audio system.
-        _cachedAppSessions.Clear();
+        _cachedSessionCollection = null;
+        _cachedDefaultDevice = null;
 
         _deviceEnumerator?.Dispose();
 
