@@ -63,6 +63,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     private DateTime _lastSessionCollectionRefresh = DateTime.MinValue;
     private Dictionary<string, (WasapiCapture Capture, MMDevice Device)> _inputDeviceCaptures = new();
     private Dictionary<string, InvalidSessionInfo> _invalidSessions = new(); // Track invalid sessions by instance ID with retry logic and auto-expiration
+    private int _sessionCollectionFailureCount = 0; // Track consecutive failures for resilient error handling
     
     public event EventHandler<AudioSessionChangedEventArgs>? SessionsChanged;
     public event EventHandler<SessionVolumeChangedEventArgs>? SessionVolumeChanged;
@@ -536,23 +537,65 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                     try
                     {
                         // Cache the default device to avoid memory leaks
-                        if (_cachedDefaultDevice == null)
+                        // If we have repeated failures or no cached device, get a fresh one
+                        if (_cachedDefaultDevice == null || _sessionCollectionFailureCount >= 2)
                         {
+                            // Dispose old device if it exists and we're replacing it due to failures
+                            if (_cachedDefaultDevice != null && _sessionCollectionFailureCount >= 2)
+                            {
+                                try
+                                {
+                                    _cachedDefaultDevice.Dispose();
+                                    Debug.WriteLine($"[GetSessionPeakLevel] Disposed old cached device due to failures");
+                                }
+                                catch (Exception disposeEx)
+                                {
+                                    Debug.WriteLine($"[GetSessionPeakLevel] Error disposing old device: {disposeEx.Message}");
+                                }
+                            }
+
                             _cachedDefaultDevice = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                            Debug.WriteLine($"[GetSessionPeakLevel] Created new cached default device (failure count: {_sessionCollectionFailureCount})");
                         }
 
-                        _cachedSessionCollection = _cachedDefaultDevice.AudioSessionManager.Sessions;
+                        var sessionManager = _cachedDefaultDevice.AudioSessionManager;
+                        _cachedSessionCollection = sessionManager.Sessions;
                         _lastSessionCollectionRefresh = DateTime.Now;
+
+                        // Success - reset failure counter and log recovery if applicable
+                        if (_sessionCollectionFailureCount > 0)
+                        {
+                            Debug.WriteLine($"[GetSessionPeakLevel] Session collection recovered after {_sessionCollectionFailureCount} failures ({_cachedSessionCollection?.Count ?? 0} sessions)");
+                            _sessionCollectionFailureCount = 0;
+                        }
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        _sessionCollectionFailureCount++;
+                        Debug.WriteLine($"[GetSessionPeakLevel] Session collection refresh failed (#{_sessionCollectionFailureCount}): {ex.GetType().Name} - {ex.Message}");
+
+                        // Clear SessionCollection on any failure, but only recreate device after 2+ failures
+                        // This ensures we don't use stale collections while still avoiding expensive device recreation
                         _cachedSessionCollection = null;
-                        _cachedDefaultDevice = null; // Clear cache on error
+
+                        // After 3 consecutive failures, also clear the device to force full recreation
+                        if (_sessionCollectionFailureCount >= 3)
+                        {
+                            Debug.WriteLine($"[GetSessionPeakLevel] Clearing device cache after {_sessionCollectionFailureCount} consecutive failures");
+                            _cachedDefaultDevice = null;
+                        }
                     }
                 }
 
                 if (_cachedSessionCollection == null)
+                {
+                    // Log this condition as it means VU meters will return 0 for this iteration
+                    if (_sessionCollectionFailureCount > 0)
+                    {
+                        Debug.WriteLine($"[GetSessionPeakLevel] No cached session collection available, returning 0 (failure count: {_sessionCollectionFailureCount})");
+                    }
                     return 0f;
+                }
 
                 // Extract process name from sessionId (format: app_{processName}_{pid}_{instanceId})
                 if (!sessionId.StartsWith("app_"))
@@ -565,9 +608,18 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 string processName = parts[1];
                 string cleanedTargetName = Path.GetFileNameWithoutExtension(processName).ToLowerInvariant();
 
-                // Find the session like DeejNG does
-                int maxSessions = Math.Min(_cachedSessionCollection.Count, 20);
-                for (int i = 0; i < maxSessions; i++)
+                // DEBUG: Log what we're searching for (only occasionally to avoid spam)
+                if (_cachedSessionCollection.Count > 0 && DateTime.Now.Millisecond < 100)
+                {
+                    Debug.WriteLine($"[GetSessionPeakLevel] Searching for '{cleanedTargetName}' in {_cachedSessionCollection.Count} sessions");
+                }
+
+                // Search through ALL sessions - don't limit to first 20
+                // The 20-session limit was causing Spotify and other apps to be missed if they appeared later in the collection
+                int sessionCount = _cachedSessionCollection.Count;
+                var foundProcesses = new List<string>(); // For debugging
+
+                for (int i = 0; i < sessionCount; i++)
                 {
                     try
                     {
@@ -582,16 +634,42 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
                         string cleanedProcessName = Path.GetFileNameWithoutExtension(procName).ToLowerInvariant();
 
+                        // Collect for debugging (only occasionally)
+                        if (DateTime.Now.Millisecond < 100 && foundProcesses.Count < 30)
+                        {
+                            foundProcesses.Add(cleanedProcessName);
+                        }
+
                         // Fuzzy matching like DeejNG
                         if (cleanedProcessName.Equals(cleanedTargetName, StringComparison.OrdinalIgnoreCase) ||
                             cleanedProcessName.Contains(cleanedTargetName, StringComparison.OrdinalIgnoreCase) ||
                             cleanedTargetName.Contains(cleanedProcessName, StringComparison.OrdinalIgnoreCase))
                         {
-                            return session.AudioMeterInformation.MasterPeakValue;
+                            var peak = session.AudioMeterInformation.MasterPeakValue;
+                            // DEBUG: Log successful matches for Spotify specifically
+                            if (cleanedTargetName.Contains("spotify") && peak > 0.01f)
+                            {
+                                Debug.WriteLine($"[GetSessionPeakLevel] Found '{cleanedTargetName}' -> '{cleanedProcessName}' with peak {peak:F3}");
+                            }
+                            return peak;
                         }
                     }
                     catch (ArgumentException) { continue; }
-                    catch { continue; }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[GetSessionPeakLevel] Error reading session {i}: {ex.Message}");
+                        continue;
+                    }
+                }
+
+                // If we didn't find the session, log it for diagnostics
+                if (foundProcesses.Count > 0)
+                {
+                    Debug.WriteLine($"[GetSessionPeakLevel] No match for '{cleanedTargetName}'. Found processes: {string.Join(", ", foundProcesses)}");
+                }
+                else if (DateTime.Now.Millisecond < 100)
+                {
+                    Debug.WriteLine($"[GetSessionPeakLevel] No matching session found for '{cleanedTargetName}' (searched {sessionCount} sessions)");
                 }
             }
             catch (Exception ex)
@@ -802,6 +880,9 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
         // Clear invalid session blacklist on start
         _invalidSessions.Clear();
+
+        // Reset session collection failure counter
+        _sessionCollectionFailureCount = 0;
 
         // Initial session fetch to populate cache
         try
