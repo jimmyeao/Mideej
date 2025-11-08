@@ -144,6 +144,11 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         else if (invalidInfo.ShouldBlacklist)
                         {
                             // Skip this session - it's had 3+ failures and hasn't expired yet
+                            // Log if this is a Spotify session being skipped
+                            if (instanceId.ToLowerInvariant().Contains("spotify"))
+                            {
+                                Debug.WriteLine($"[GetActiveSessions] BLACKLISTED Spotify session: {instanceId}");
+                            }
                             continue;
                         }
                         // Otherwise, let it through (1-2 failures, not blacklisted yet)
@@ -214,6 +219,12 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
                     if (string.IsNullOrWhiteSpace(displayName))
                         displayName = processName;
+
+                    // Log Spotify sessions specifically
+                    if (processName.ToLowerInvariant().Contains("spotify"))
+                    {
+                        Debug.WriteLine($"[GetActiveSessions] Found Spotify: PID={pid}, DisplayName='{displayName}', SessionId={sessionId}");
+                    }
 
                     float volume = 0f, peakLevel = 0f;
                     bool isMuted = false;
@@ -527,76 +538,11 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 return 0f;
             }
 
-            // DeejNG approach: Get fresh SessionCollection and find the session each time
-            // This avoids stale COM object issues
+            // CRITICAL FIX: Search ALL devices, not just default device
+            // Apps can route audio to different outputs (headphones, virtual devices, etc.)
+            // This was the root cause of intermittent VU meter failures
             try
             {
-                // Refresh SessionCollection every 50ms like DeejNG
-                if ((DateTime.Now - _lastSessionCollectionRefresh).TotalMilliseconds > 50)
-                {
-                    try
-                    {
-                        // Cache the default device to avoid memory leaks
-                        // If we have repeated failures or no cached device, get a fresh one
-                        if (_cachedDefaultDevice == null || _sessionCollectionFailureCount >= 2)
-                        {
-                            // Dispose old device if it exists and we're replacing it due to failures
-                            if (_cachedDefaultDevice != null && _sessionCollectionFailureCount >= 2)
-                            {
-                                try
-                                {
-                                    _cachedDefaultDevice.Dispose();
-                                    Debug.WriteLine($"[GetSessionPeakLevel] Disposed old cached device due to failures");
-                                }
-                                catch (Exception disposeEx)
-                                {
-                                    Debug.WriteLine($"[GetSessionPeakLevel] Error disposing old device: {disposeEx.Message}");
-                                }
-                            }
-
-                            _cachedDefaultDevice = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                            Debug.WriteLine($"[GetSessionPeakLevel] Created new cached default device (failure count: {_sessionCollectionFailureCount})");
-                        }
-
-                        var sessionManager = _cachedDefaultDevice.AudioSessionManager;
-                        _cachedSessionCollection = sessionManager.Sessions;
-                        _lastSessionCollectionRefresh = DateTime.Now;
-
-                        // Success - reset failure counter and log recovery if applicable
-                        if (_sessionCollectionFailureCount > 0)
-                        {
-                            Debug.WriteLine($"[GetSessionPeakLevel] Session collection recovered after {_sessionCollectionFailureCount} failures ({_cachedSessionCollection?.Count ?? 0} sessions)");
-                            _sessionCollectionFailureCount = 0;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _sessionCollectionFailureCount++;
-                        Debug.WriteLine($"[GetSessionPeakLevel] Session collection refresh failed (#{_sessionCollectionFailureCount}): {ex.GetType().Name} - {ex.Message}");
-
-                        // Clear SessionCollection on any failure, but only recreate device after 2+ failures
-                        // This ensures we don't use stale collections while still avoiding expensive device recreation
-                        _cachedSessionCollection = null;
-
-                        // After 3 consecutive failures, also clear the device to force full recreation
-                        if (_sessionCollectionFailureCount >= 3)
-                        {
-                            Debug.WriteLine($"[GetSessionPeakLevel] Clearing device cache after {_sessionCollectionFailureCount} consecutive failures");
-                            _cachedDefaultDevice = null;
-                        }
-                    }
-                }
-
-                if (_cachedSessionCollection == null)
-                {
-                    // Log this condition as it means VU meters will return 0 for this iteration
-                    if (_sessionCollectionFailureCount > 0)
-                    {
-                        Debug.WriteLine($"[GetSessionPeakLevel] No cached session collection available, returning 0 (failure count: {_sessionCollectionFailureCount})");
-                    }
-                    return 0f;
-                }
-
                 // Extract process name from sessionId (format: app_{processName}_{pid}_{instanceId})
                 if (!sessionId.StartsWith("app_"))
                     return 0f;
@@ -608,73 +554,56 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 string processName = parts[1];
                 string cleanedTargetName = Path.GetFileNameWithoutExtension(processName).ToLowerInvariant();
 
-                // DEBUG: Log what we're searching for (only occasionally to avoid spam)
-                if (_cachedSessionCollection.Count > 0 && DateTime.Now.Millisecond < 100)
+                // Enumerate ALL output devices and search their sessions
+                for (int deviceIndex = 0; deviceIndex < _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active).Count; deviceIndex++)
                 {
-                    Debug.WriteLine($"[GetSessionPeakLevel] Searching for '{cleanedTargetName}' in {_cachedSessionCollection.Count} sessions");
-                }
-
-                // Search through ALL sessions - don't limit to first 20
-                // The 20-session limit was causing Spotify and other apps to be missed if they appeared later in the collection
-                int sessionCount = _cachedSessionCollection.Count;
-                var foundProcesses = new List<string>(); // For debugging
-
-                for (int i = 0; i < sessionCount; i++)
-                {
+                    MMDevice? device = null;
                     try
                     {
-                        var session = _cachedSessionCollection[i];
-                        if (session == null) continue;
+                        device = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active)[deviceIndex];
+                        if (device == null) continue;
 
-                        int pid = (int)session.GetProcessID;
-                        if (pid < 100) continue;
+                        var sessions = device.AudioSessionManager.Sessions;
+                        if (sessions == null) continue;
 
-                        string procName = ProcessNameCache.GetProcessName(pid);
-                        if (string.IsNullOrEmpty(procName)) continue;
-
-                        string cleanedProcessName = Path.GetFileNameWithoutExtension(procName).ToLowerInvariant();
-
-                        // Collect for debugging (only occasionally)
-                        if (DateTime.Now.Millisecond < 100 && foundProcesses.Count < 30)
+                        // Search through all sessions on this device
+                        for (int i = 0; i < sessions.Count; i++)
                         {
-                            foundProcesses.Add(cleanedProcessName);
-                        }
-
-                        // Fuzzy matching like DeejNG
-                        if (cleanedProcessName.Equals(cleanedTargetName, StringComparison.OrdinalIgnoreCase) ||
-                            cleanedProcessName.Contains(cleanedTargetName, StringComparison.OrdinalIgnoreCase) ||
-                            cleanedTargetName.Contains(cleanedProcessName, StringComparison.OrdinalIgnoreCase))
-                        {
-                            var peak = session.AudioMeterInformation.MasterPeakValue;
-                            // DEBUG: Log successful matches for Spotify specifically
-                            if (cleanedTargetName.Contains("spotify") && peak > 0.01f)
+                            try
                             {
-                                Debug.WriteLine($"[GetSessionPeakLevel] Found '{cleanedTargetName}' -> '{cleanedProcessName}' with peak {peak:F3}");
+                                var session = sessions[i];
+                                if (session == null) continue;
+
+                                int pid = (int)session.GetProcessID;
+                                if (pid < 100) continue;
+
+                                string procName = ProcessNameCache.GetProcessName(pid);
+                                if (string.IsNullOrEmpty(procName)) continue;
+
+                                string cleanedProcessName = Path.GetFileNameWithoutExtension(procName).ToLowerInvariant();
+
+                                // Fuzzy matching like DeejNG
+                                if (cleanedProcessName.Equals(cleanedTargetName, StringComparison.OrdinalIgnoreCase) ||
+                                    cleanedProcessName.Contains(cleanedTargetName, StringComparison.OrdinalIgnoreCase) ||
+                                    cleanedTargetName.Contains(cleanedProcessName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    return session.AudioMeterInformation.MasterPeakValue;
+                                }
                             }
-                            return peak;
+                            catch (ArgumentException) { continue; }
+                            catch { continue; }
                         }
                     }
-                    catch (ArgumentException) { continue; }
-                    catch (Exception ex)
+                    catch { continue; }
+                    finally
                     {
-                        Debug.WriteLine($"[GetSessionPeakLevel] Error reading session {i}: {ex.Message}");
-                        continue;
+                        // Don't dispose - the collection owns these references
                     }
-                }
-
-                // If we didn't find the session, log it for diagnostics
-                if (foundProcesses.Count > 0)
-                {
-                    Debug.WriteLine($"[GetSessionPeakLevel] No match for '{cleanedTargetName}'. Found processes: {string.Join(", ", foundProcesses)}");
-                }
-                else if (DateTime.Now.Millisecond < 100)
-                {
-                    Debug.WriteLine($"[GetSessionPeakLevel] No matching session found for '{cleanedTargetName}' (searched {sessionCount} sessions)");
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[GetSessionPeakLevel] Error finding session: {ex.Message}");
+                Debug.WriteLine($"[GetSessionPeakLevel] Error searching devices: {ex.Message}");
             }
 
             return 0f;
@@ -1096,17 +1025,34 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
     /// </summary>
     private void TrackSessionFailure(string instanceId, string errorType)
     {
+        // Log prominently if this is Spotify
+        bool isSpotify = instanceId.ToLowerInvariant().Contains("spotify");
+
         if (_invalidSessions.TryGetValue(instanceId, out var info))
         {
             // Existing entry - increment failure count
             info.IncrementFailure();
-            Debug.WriteLine($"[TrackSessionFailure] {instanceId} failure #{info.FailureCount} ({errorType})");
+            if (isSpotify)
+            {
+                Debug.WriteLine($"[TrackSessionFailure] *** SPOTIFY *** failure #{info.FailureCount} ({errorType}) - Instance: {instanceId}");
+            }
+            else
+            {
+                Debug.WriteLine($"[TrackSessionFailure] {instanceId} failure #{info.FailureCount} ({errorType})");
+            }
         }
         else
         {
             // New entry
             _invalidSessions[instanceId] = new InvalidSessionInfo();
-            Debug.WriteLine($"[TrackSessionFailure] {instanceId} first failure ({errorType})");
+            if (isSpotify)
+            {
+                Debug.WriteLine($"[TrackSessionFailure] *** SPOTIFY *** first failure ({errorType}) - Instance: {instanceId}");
+            }
+            else
+            {
+                Debug.WriteLine($"[TrackSessionFailure] {instanceId} first failure ({errorType})");
+            }
         }
     }
 
