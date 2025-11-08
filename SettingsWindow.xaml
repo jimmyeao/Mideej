@@ -7,7 +7,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         mc:Ignorable="d"
         Title="Settings - Mideej"
-        Height="889"
+        Height="945"
         Width="700"
         MinHeight="500"
         MinWidth="600"
@@ -381,7 +381,7 @@
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,1,0,0"
                     CornerRadius="0,0,12,12"
-                    Padding="30,16" Grid.ColumnSpan="2" Margin="0,747,0,0">
+                    Padding="30,16" Grid.ColumnSpan="2" Margin="0,802,0,0">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>

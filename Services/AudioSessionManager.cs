@@ -223,7 +223,7 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                     // Log Spotify sessions specifically
                     if (processName.ToLowerInvariant().Contains("spotify"))
                     {
-                        Debug.WriteLine($"[GetActiveSessions] Found Spotify: PID={pid}, DisplayName='{displayName}', SessionId={sessionId}");
+                        Debug.WriteLine($"[GetActiveSessions] : PID={pid}, DisplayName='{displayName}', SessionId={sessionId}");
                     }
 
                     float volume = 0f, peakLevel = 0f;
@@ -244,6 +244,9 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         Debug.WriteLine($"[AudioProperties] Unexpected error for PID {pid} ({processName}): {ex.GetType().Name} - {ex.Message}");
                     }
 
+                    // Cache cleaned process name for fast VU meter lookups
+                    string cleanedProcessName = Path.GetFileNameWithoutExtension(processName).ToLowerInvariant();
+
                     sessions.Add(new AudioSessionInfo
                     {
                         SessionId = sessionId,
@@ -253,7 +256,8 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         SessionType = AudioSessionType.Application,
                         Volume = volume,
                         IsMuted = isMuted,
-                        PeakLevel = peakLevel
+                        PeakLevel = peakLevel,
+                        CleanedProcessName = cleanedProcessName
                     });
                 }
                 catch (ArgumentException)
@@ -458,21 +462,36 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         }
     }
 
-    public float GetSessionPeakLevel(string sessionId)
+    public float GetSessionPeakLevel(string sessionId, string? cleanedProcessName = null)
     {
         try
         {
-            // Handle master output
+            // Handle master output - use cached device to avoid repeated enumeration
             if (sessionId == "master_output")
             {
                 try
                 {
-                    using var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                    return device.AudioMeterInformation.MasterPeakValue;
+                    // Cache the default device to avoid creating/disposing it every 30ms
+                    if (_cachedDefaultDevice == null)
+                    {
+                        _cachedDefaultDevice = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                    }
+                    return _cachedDefaultDevice.AudioMeterInformation.MasterPeakValue;
                 }
                 catch
                 {
-                    return 0f;
+                    // Device might be stale, clear cache and try once more
+                    _cachedDefaultDevice?.Dispose();
+                    _cachedDefaultDevice = null;
+                    try
+                    {
+                        _cachedDefaultDevice = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                        return _cachedDefaultDevice.AudioMeterInformation.MasterPeakValue;
+                    }
+                    catch
+                    {
+                        return 0f;
+                    }
                 }
             }
 
@@ -547,20 +566,33 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 if (!sessionId.StartsWith("app_"))
                     return 0f;
 
-                var parts = sessionId.Split('_', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length < 2)
-                    return 0f;
+                // OPTIMIZATION: Use cached cleanedProcessName if provided to avoid string parsing (30ms interval)
+                string cleanedTargetName;
+                if (!string.IsNullOrEmpty(cleanedProcessName))
+                {
+                    cleanedTargetName = cleanedProcessName;
+                }
+                else
+                {
+                    // Fallback: parse from sessionId if cleanedProcessName not provided
+                    var parts = sessionId.Split('_', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length < 2)
+                        return 0f;
 
-                string processName = parts[1];
-                string cleanedTargetName = Path.GetFileNameWithoutExtension(processName).ToLowerInvariant();
+                    string processName = parts[1];
+                    cleanedTargetName = Path.GetFileNameWithoutExtension(processName).ToLowerInvariant();
+                }
 
-                // Enumerate ALL output devices and search their sessions
-                for (int deviceIndex = 0; deviceIndex < _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active).Count; deviceIndex++)
+                // Enumerate ALL output devices ONCE and cache the collection
+                var devices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+
+                // Search through all devices and their sessions
+                for (int deviceIndex = 0; deviceIndex < devices.Count; deviceIndex++)
                 {
                     MMDevice? device = null;
                     try
                     {
-                        device = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active)[deviceIndex];
+                        device = devices[deviceIndex];
                         if (device == null) continue;
 
                         var sessions = device.AudioSessionManager.Sessions;
@@ -575,17 +607,26 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                                 if (session == null) continue;
 
                                 int pid = (int)session.GetProcessID;
-                                if (pid < 100) continue;
+
+                                if (pid < 100)
+                                {
+                                    continue;
+                                }
 
                                 string procName = ProcessNameCache.GetProcessName(pid);
-                                if (string.IsNullOrEmpty(procName)) continue;
+                                if (string.IsNullOrEmpty(procName))
+                                {
+                                    continue;
+                                }
 
-                                string cleanedProcessName = Path.GetFileNameWithoutExtension(procName).ToLowerInvariant();
+                                string sessionProcessName = Path.GetFileNameWithoutExtension(procName).ToLowerInvariant();
 
                                 // Fuzzy matching like DeejNG
-                                if (cleanedProcessName.Equals(cleanedTargetName, StringComparison.OrdinalIgnoreCase) ||
-                                    cleanedProcessName.Contains(cleanedTargetName, StringComparison.OrdinalIgnoreCase) ||
-                                    cleanedTargetName.Contains(cleanedProcessName, StringComparison.OrdinalIgnoreCase))
+                                bool isMatch = sessionProcessName.Equals(cleanedTargetName, StringComparison.OrdinalIgnoreCase) ||
+                                               sessionProcessName.Contains(cleanedTargetName, StringComparison.OrdinalIgnoreCase) ||
+                                               cleanedTargetName.Contains(sessionProcessName, StringComparison.OrdinalIgnoreCase);
+
+                                if (isMatch)
                                 {
                                     return session.AudioMeterInformation.MasterPeakValue;
                                 }
@@ -729,6 +770,8 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             string targetName = Path.GetFileNameWithoutExtension(executable).ToLowerInvariant();
             if (string.IsNullOrEmpty(targetName)) return;
 
+            Debug.WriteLine($"[ApplyMuteToTarget] executable: {executable}, targetName: {targetName}, isMuted: {isMuted}");
+
             using var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
             var sessions = device.AudioSessionManager.Sessions;
 
@@ -744,7 +787,10 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                     string cleanedProcName = Path.GetFileNameWithoutExtension(procName).ToLowerInvariant();
 
                     if (IsProcessNameMatch(cleanedProcName, targetName))
+                    {
+                        Debug.WriteLine($"[ApplyMuteToTarget] MATCH: targetName='{targetName}' matched cleanedProcName='{cleanedProcName}' (PID {pid}), setting mute={isMuted}");
                         session.SimpleAudioVolume.Mute = isMuted;
+                    }
                 }
                 catch { /* Skip invalid session */ }
             }
@@ -792,14 +838,9 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         if (string.IsNullOrEmpty(processName) || string.IsNullOrEmpty(targetName))
             return false;
 
-        if (processName.Equals(targetName, StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        if (processName.Contains(targetName, StringComparison.OrdinalIgnoreCase) ||
-            targetName.Contains(processName, StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        return false;
+        // Exact match only - different executables are separate sessions
+        // msedge != msedgewebview2, chrome != chrome_helper, etc.
+        return processName.Equals(targetName, StringComparison.OrdinalIgnoreCase);
     }
 
     public void StartMonitoring()
@@ -857,14 +898,76 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         {
             try
             {
-                // Update peak levels for cached sessions without re-enumerating devices
+                // DeejNG approach: Enumerate sessions ONCE per tick, not once per cached session
                 var peaks = new Dictionary<string, float>();
-                foreach (var session in _cachedSessions)
+
+                // Get default device - same as volume control uses
+                using var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                var sessions = device.AudioSessionManager.Sessions;
+
+                // Build a process name -> peak level lookup table
+                var processPeaks = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < sessions.Count; i++)
                 {
-                    // Update peak level from actual audio session
-                    float peakLevel = GetSessionPeakLevel(session.SessionId);
-                    peaks[session.SessionId] = peakLevel;
+                    try
+                    {
+                        var session = sessions[i];
+                        int pid = (int)session.GetProcessID;
+                        if (pid < 100) continue;
+
+                        string procName = ProcessNameCache.GetProcessName(pid);
+                        if (string.IsNullOrEmpty(procName)) continue;
+
+                        string cleanedProcName = Path.GetFileNameWithoutExtension(procName).ToLowerInvariant();
+                        float peak = session.AudioMeterInformation.MasterPeakValue;
+
+                        // Keep the highest peak for this process name
+                        if (!processPeaks.ContainsKey(cleanedProcName) || peak > processPeaks[cleanedProcName])
+                        {
+                            processPeaks[cleanedProcName] = peak;
+                        }
+                    }
+                    catch (ArgumentException) { continue; }
+                    catch { continue; }
                 }
+
+                // Map cached sessions to their peak levels using fuzzy matching
+                foreach (var cachedSession in _cachedSessions)
+                {
+                    float peak = 0f;
+
+                    if (cachedSession.SessionId == "master_output")
+                    {
+                        // Master output - get from device
+                        peak = device.AudioMeterInformation.MasterPeakValue;
+                    }
+                    else if (cachedSession.SessionId.StartsWith("input_"))
+                    {
+                        // Input devices handled separately
+                        peak = GetSessionPeakLevel(cachedSession.SessionId, cachedSession.CleanedProcessName);
+                    }
+                    else if (cachedSession.SessionId.StartsWith("output_"))
+                    {
+                        // Output devices handled separately
+                        peak = GetSessionPeakLevel(cachedSession.SessionId, cachedSession.CleanedProcessName);
+                    }
+                    else if (cachedSession.CleanedProcessName != null)
+                    {
+                        // Application session - use fuzzy matching against processPeaks
+                        string targetName = cachedSession.CleanedProcessName;
+
+                        // Try exact match first
+                        if (processPeaks.TryGetValue(targetName, out float exactPeak))
+                        {
+                            peak = exactPeak;
+                        }
+                        // No else - if no exact match, peak stays at 0
+                        // Different executables (msedge vs msedgewebview2) are separate sessions
+                    }
+
+                    peaks[cachedSession.SessionId] = peak;
+                }
+
                 PeakLevelsUpdated?.Invoke(this, new PeakLevelEventArgs { PeakLevels = peaks });
             }
             catch (Exception ex)

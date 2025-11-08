@@ -906,15 +906,30 @@ public partial class MainWindowViewModel : ViewModelBase
  {
  if (sender is ChannelViewModel soloedChannel && soloedChannel.IsSoloed)
  {
+ // DEBUG: Log solo attempt for Edge
+ var isEdge = soloedChannel.AssignedSessions.Any(s => s.DisplayName?.ToLowerInvariant().Contains("edge") ?? false);
+ if (isEdge)
+ {
+ var edgeSession = soloedChannel.AssignedSessions.FirstOrDefault(s => s.DisplayName?.ToLowerInvariant().Contains("edge") ?? false);
+ Debug.WriteLine($"[OnChannelSoloChanged] Edge solo attempt - Channel: {soloedChannel.Name}, SessionId: {edgeSession?.SessionId}, IsEdge: {isEdge}");
+ }
+
  // Prevent soloing system devices (master volume, input/output devices)
- if (soloedChannel.AssignedSessions.Any(s => 
+ if (soloedChannel.AssignedSessions.Any(s =>
  s.SessionId == "master_output" ||
  s.SessionId.StartsWith("input_") ||
  s.SessionId.StartsWith("output_")))
  {
  soloedChannel.IsSoloed = false;
  StatusMessage = "Cannot solo system audio devices";
+ Debug.WriteLine($"[OnChannelSoloChanged] Solo blocked - system device");
  return;
+ }
+
+ // DEBUG: Log successful Edge solo
+ if (isEdge)
+ {
+ Debug.WriteLine($"[OnChannelSoloChanged] Edge solo ALLOWED - applying solo logic");
  }
 
  // Exclusive solo - unsolo all other channels
@@ -2118,10 +2133,21 @@ public partial class MainWindowViewModel : ViewModelBase
 
  if (soloedChannels.Any())
  {
+ // DEBUG: Log soloed channels
+ foreach (var sc in soloedChannels)
+ {
+ Debug.WriteLine($"[ApplySoloLogic] Soloed channel: {sc.Name}, AssignedSessions count: {sc.AssignedSessions.Count}");
+ foreach (var s in sc.AssignedSessions)
+ {
+ Debug.WriteLine($"  - SessionId: {s.SessionId}, ProcessName: {s.ProcessName}, PID: {s.ProcessId}");
+ }
+ }
+
  // Mute all non-soloed channels (skip system devices during solo)
  foreach (var channel in Channels)
  {
  bool shouldBeMuted = !channel.IsSoloed;
+ Debug.WriteLine($"[ApplySoloLogic] Channel: {channel.Name}, IsSoloed: {channel.IsSoloed}, shouldBeMuted: {shouldBeMuted}");
  ApplyEffectiveMute(channel, shouldBeMuted, isFromSolo: true);
  }
  }
@@ -2143,14 +2169,16 @@ public partial class MainWindowViewModel : ViewModelBase
  {
  // During solo operations, don't mute system devices (master, input, output)
  // But allow manual mute to work on all devices
- if (isFromSolo && 
- (session.SessionId == "master_output" || 
- session.SessionId.StartsWith("input_") || 
+ if (isFromSolo &&
+ (session.SessionId == "master_output" ||
+ session.SessionId.StartsWith("input_") ||
  session.SessionId.StartsWith("output_")))
  {
+ Debug.WriteLine($"[ApplyEffectiveMute] Skipping system device: {session.SessionId}");
  continue;
  }
 
+ Debug.WriteLine($"[ApplyEffectiveMute] Channel: {channel.Name}, Session: {session.ProcessName} (PID {session.ProcessId}), SessionId: {session.SessionId}, isMuted: {isMuted}");
  _audioSessionManager.SetSessionMute(session.SessionId, isMuted);
  }
  }
