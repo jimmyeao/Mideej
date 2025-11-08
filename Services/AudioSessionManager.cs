@@ -770,8 +770,6 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
             string targetName = Path.GetFileNameWithoutExtension(executable).ToLowerInvariant();
             if (string.IsNullOrEmpty(targetName)) return;
 
-            Debug.WriteLine($"[ApplyMuteToTarget] executable: {executable}, targetName: {targetName}, isMuted: {isMuted}");
-
             using var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
             var sessions = device.AudioSessionManager.Sessions;
 
@@ -788,7 +786,6 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
                     if (IsProcessNameMatch(cleanedProcName, targetName))
                     {
-                        Debug.WriteLine($"[ApplyMuteToTarget] MATCH: targetName='{targetName}' matched cleanedProcName='{cleanedProcName}' (PID {pid}), setting mute={isMuted}");
                         session.SimpleAudioVolume.Mute = isMuted;
                     }
                 }

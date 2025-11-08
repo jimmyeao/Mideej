@@ -93,7 +93,12 @@ public partial class MainWindowViewModel : ViewModelBase
     private double _minWindowWidth =600;
 
     [ObservableProperty]
+    private double _maxWindowWidth = 10000; // Large enough for any screen, but within WPF limits
+
+    [ObservableProperty]
     private bool _isFullScreenMode;
+
+    private double _savedWindowWidth; // Store width before fullscreen
 
     partial void OnStartWithWindowsChanged(bool value)
     {
@@ -655,6 +660,40 @@ public partial class MainWindowViewModel : ViewModelBase
  {
  IsFullScreenMode = !IsFullScreenMode;
  StatusMessage = IsFullScreenMode ? "Full Screen Mode" : "Normal Mode";
+
+ if (IsFullScreenMode)
+ {
+ // Entering fullscreen: save current width and maximize
+ _savedWindowWidth = WindowWidth;
+ MaxWindowWidth = 10000;
+
+ // Get the actual screen bounds where the window is currently located
+ try
+ {
+ var window = System.Windows.Application.Current.MainWindow;
+ if (window != null)
+ {
+ var screen = System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(window).Handle);
+ WindowWidth = screen.Bounds.Width;
+ }
+ else
+ {
+ // Fallback to primary screen if window not found
+ WindowWidth = System.Windows.SystemParameters.PrimaryScreenWidth;
+ }
+ }
+ catch
+ {
+ // Fallback to primary screen on error
+ WindowWidth = System.Windows.SystemParameters.PrimaryScreenWidth;
+ }
+ }
+ else
+ {
+ // Exit fullscreen: restore saved width and lock to channel count
+ WindowWidth = _savedWindowWidth;
+ UpdateWindowSize();
+ }
  }
 
  [RelayCommand]
@@ -836,10 +875,16 @@ public partial class MainWindowViewModel : ViewModelBase
 
  int channelCount = Math.Max(minChannels, Math.Min(Channels.Count, maxChannels));
  double calculatedWidth = (channelCount * channelWidth) + windowChrome;
- 
+
  // Update minimum width to fit all channels (use actual channel count, not clamped)
  MinWindowWidth = Math.Max(600, (Channels.Count * channelWidth) + windowChrome);
- 
+
+ // Lock max width to min width unless in fullscreen mode
+ if (!IsFullScreenMode)
+ {
+ MaxWindowWidth = MinWindowWidth;
+ }
+
  // Only update window width if it would be larger than current or if current is smaller than min
  if (WindowWidth < MinWindowWidth)
  {
@@ -2133,21 +2178,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
  if (soloedChannels.Any())
  {
- // DEBUG: Log soloed channels
- foreach (var sc in soloedChannels)
- {
- Debug.WriteLine($"[ApplySoloLogic] Soloed channel: {sc.Name}, AssignedSessions count: {sc.AssignedSessions.Count}");
- foreach (var s in sc.AssignedSessions)
- {
- Debug.WriteLine($"  - SessionId: {s.SessionId}, ProcessName: {s.ProcessName}, PID: {s.ProcessId}");
- }
- }
-
  // Mute all non-soloed channels (skip system devices during solo)
  foreach (var channel in Channels)
  {
  bool shouldBeMuted = !channel.IsSoloed;
- Debug.WriteLine($"[ApplySoloLogic] Channel: {channel.Name}, IsSoloed: {channel.IsSoloed}, shouldBeMuted: {shouldBeMuted}");
  ApplyEffectiveMute(channel, shouldBeMuted, isFromSolo: true);
  }
  }
@@ -2174,11 +2208,9 @@ public partial class MainWindowViewModel : ViewModelBase
  session.SessionId.StartsWith("input_") ||
  session.SessionId.StartsWith("output_")))
  {
- Debug.WriteLine($"[ApplyEffectiveMute] Skipping system device: {session.SessionId}");
  continue;
  }
 
- Debug.WriteLine($"[ApplyEffectiveMute] Channel: {channel.Name}, Session: {session.ProcessName} (PID {session.ProcessId}), SessionId: {session.SessionId}, isMuted: {isMuted}");
  _audioSessionManager.SetSessionMute(session.SessionId, isMuted);
  }
  }
