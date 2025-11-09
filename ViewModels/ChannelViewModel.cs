@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -415,15 +416,13 @@ public partial class ChannelViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Fuzzy process name matching - matches if exact, contains, or is contained (like DeejNG)
+    /// Exact process name matching - different executables are separate sessions
+    /// (e.g., msedge != msedgewebview2, chrome != chrome_helper)
     /// </summary>
     private bool FuzzyMatchProcessName(string processName, string cleanedTargetName)
     {
         var cleanedProcessName = Path.GetFileNameWithoutExtension(processName).ToLowerInvariant();
-
-        return cleanedProcessName.Equals(cleanedTargetName, StringComparison.OrdinalIgnoreCase) ||
-               cleanedProcessName.Contains(cleanedTargetName, StringComparison.OrdinalIgnoreCase) ||
-               cleanedTargetName.Contains(cleanedProcessName, StringComparison.OrdinalIgnoreCase);
+        return cleanedProcessName.Equals(cleanedTargetName, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

@@ -17,6 +17,7 @@
         WindowState="{Binding WindowState, Mode=TwoWay}"
         MinHeight="500"
         MinWidth="{Binding MinWindowWidth}"
+        MaxWidth="{Binding MaxWindowWidth}"
         Background="{DynamicResource BackgroundBrush}"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -36,7 +37,7 @@
             Background="{DynamicResource BackgroundBrush}">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="60"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
@@ -47,6 +48,7 @@
             <Border Grid.Row="0"
                     Background="{DynamicResource SurfaceBrush}"
                     CornerRadius="12,12,0,0"
+                    Padding="0,8"
                     MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -59,7 +61,8 @@
                     <StackPanel Grid.Column="0"
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center"
-                                Margin="20,0">
+                                Margin="20,0"
+                                Visibility="{Binding IsFullScreenMode, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}">
                         <TextBlock Text="🎛️"
                                    FontSize="24"
                                    VerticalAlignment="Center"
@@ -74,13 +77,14 @@
                                Text="{Binding StatusMessage}"
                                Style="{StaticResource SubtitleTextBlock}"
                                VerticalAlignment="Center"
-                               HorizontalAlignment="Center"/>
+                               HorizontalAlignment="Center"
+                               Visibility="{Binding IsFullScreenMode, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"/>
 
                     <!-- Window Controls -->
                     <StackPanel Grid.Column="2"
                                 Orientation="Horizontal"
                                 HorizontalAlignment="Right"
-                                Margin="12">
+                                Margin="8,0">
                         <Button Content="⛶"
                                 Style="{StaticResource IconButton}"
                                 Command="{Binding ToggleFullScreenModeCommand}"
@@ -89,10 +93,6 @@
                         <Button Content="—"
                                 Style="{StaticResource IconButton}"
                                 Click="MinimizeButton_Click"
-                                Margin="4,0"/>
-                        <Button Content="□"
-                                Style="{StaticResource IconButton}"
-                                Click="MaximizeButton_Click"
                                 Margin="4,0"/>
                         <Button Content="✕"
                                 Style="{StaticResource IconButton}"
@@ -202,7 +202,8 @@
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,1,0,0"
-                    Padding="20,8,20,8">
+                    Padding="20,8,20,8"
+                    Visibility="{Binding IsFullScreenMode, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>

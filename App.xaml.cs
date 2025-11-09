@@ -80,21 +80,39 @@ public partial class App : Application
         }
     }
 
-    protected override async void OnExit(ExitEventArgs e)
+    protected override void OnExit(ExitEventArgs e)
     {
-        // Save configuration before exiting
+        Console.WriteLine("[App.OnExit] Application exit event triggered");
+
         var mainWindow = Current.MainWindow as MainWindow;
         if (mainWindow?.DataContext is MainWindowViewModel viewModel)
         {
-            await viewModel.SaveConfigurationAsync();
+            // Turn off all LEDs before disposing services (synchronous to ensure completion)
+            try
+            {
+                Console.WriteLine("[App.OnExit] Calling TurnOffAllLeds()");
+                viewModel.TurnOffAllLeds();
+                // Give MIDI messages time to be sent before disposing
+                System.Threading.Thread.Sleep(150);
+                Console.WriteLine("[App.OnExit] LED cleanup complete, waited 150ms");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[App.OnExit] Error turning off LEDs on exit: {ex.Message}");
+            }
+
+            // Save configuration before exiting (synchronous)
+            viewModel.SaveConfigurationAsync().GetAwaiter().GetResult();
         }
 
-        // Dispose services
+        // Dispose services AFTER LED cleanup
+        Console.WriteLine("[App.OnExit] Disposing services");
         if (_serviceProvider is IDisposable disposable)
         {
             disposable.Dispose();
         }
 
+        Console.WriteLine("[App.OnExit] Application exit complete");
         base.OnExit(e);
     }
 }

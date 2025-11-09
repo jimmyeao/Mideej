@@ -57,6 +57,12 @@ public class AudioSessionInfo : INotifyPropertyChanged
     public AudioSessionType SessionType { get; set; }
 
     /// <summary>
+    /// Cached cleaned process name for fast VU meter lookups (avoids repeated string parsing)
+    /// Format: lowercase, no extension (e.g., "chrome", "spotify")
+    /// </summary>
+    public string? CleanedProcessName { get; set; }
+
+    /// <summary>
     /// Whether this session is selected in the UI
     /// </summary>
     public bool IsSelected

@@ -45,7 +45,9 @@ public interface IAudioSessionManager
     /// <summary>
     /// Gets the current peak level for a session (for VU meter)
     /// </summary>
-    float GetSessionPeakLevel(string sessionId);
+    /// <param name="sessionId">Session identifier</param>
+    /// <param name="cleanedProcessName">Optional cached cleaned process name for performance optimization</param>
+    float GetSessionPeakLevel(string sessionId, string? cleanedProcessName = null);
 
     /// <summary>
     /// Starts monitoring audio sessions

@@ -234,3 +234,5 @@ This project was inspired by [DeejNG](https://github.com/jimmyeao/DeejNG). Key p
 - VU meter rendering approach
 - Profile and configuration architecture
 - Channel control UI patterns
+- [GetSessionPeakLevel] Searching for 'chrome' in 10 sessions
+

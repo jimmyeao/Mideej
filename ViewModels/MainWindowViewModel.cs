@@ -93,36 +93,166 @@ public partial class MainWindowViewModel : ViewModelBase
     private double _minWindowWidth =600;
 
     [ObservableProperty]
+    private double _maxWindowWidth = 10000; // Large enough for any screen, but within WPF limits
+
+    [ObservableProperty]
     private bool _isFullScreenMode;
+
+    private double _savedWindowWidth; // Store width before fullscreen
 
     partial void OnStartWithWindowsChanged(bool value)
     {
         UpdateStartupRegistry(value);
     }
 
-    public ObservableCollection<ThemeOption> AvailableThemes { get; } = new()
- {
- new ThemeOption { Name = "DarkTheme", DisplayName = "Dark 🌙" },
- new ThemeOption { Name = "LightTheme", DisplayName = "Light ☀️" },
- new ThemeOption { Name = "NordTheme", DisplayName = "Nord 🌊" },
- new ThemeOption { Name = "DraculaTheme", DisplayName = "Dracula 🦇" },
- new ThemeOption { Name = "OceanTheme", DisplayName = "Ocean 🌅" },
- new ThemeOption { Name = "SunsetTheme", DisplayName = "Sunset 🌇" },
- new ThemeOption { Name = "CyberpunkTheme", DisplayName = "Cyberpunk 🌈" },
- new ThemeOption { Name = "ForestTheme", DisplayName = "Forest 🌿" },
- new ThemeOption { Name = "ArcticTheme", DisplayName = "Arctic ❄️" },
- // Holiday themes
- new ThemeOption { Name = "HalloweenTheme", DisplayName = "Halloween 🎃" },
- new ThemeOption { Name = "ChristmasTheme", DisplayName = "Christmas 🎄" },
- new ThemeOption { Name = "DiwaliTheme", DisplayName = "Diwali 🪔" },
- new ThemeOption { Name = "HanukkahTheme", DisplayName = "Hanukkah 🕎" },
- new ThemeOption { Name = "EidTheme", DisplayName = "Eid 🌙" },
- new ThemeOption { Name = "LunarNewYearTheme", DisplayName = "Lunar New Year 🧧" },
- new ThemeOption { Name = "EasterTheme", DisplayName = "Easter 🐣" },
- new ThemeOption { Name = "NowruzTheme", DisplayName = "Nowruz 🌱" },
- new ThemeOption { Name = "RamadanTheme", DisplayName = "Ramadan 🌙" },
- new ThemeOption { Name = "PrideTheme", DisplayName = "Pride 🏳️‍🌈" }
- };
+    public ObservableCollection<ThemeOption> AvailableThemes { get; } = new();
+
+    public void RefreshAvailableThemes()
+    {
+        try
+        {
+            var currentSelection = SelectedTheme?.Name;
+            var themeService = new ThemeService();
+
+            System.Diagnostics.Debug.WriteLine("RefreshAvailableThemes: Starting refresh");
+
+            // Get all available themes
+            var availableThemeNames = themeService.GetAvailableThemes();
+            System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: Found {availableThemeNames.Count} theme names");
+
+            // Check for custom themes (physical files in AppData)
+            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var customThemesPath = Path.Combine(appDataPath, "Mideej", "Themes");
+            var customThemeNames = new HashSet<string>();
+            if (Directory.Exists(customThemesPath))
+            {
+                customThemeNames = Directory.GetFiles(customThemesPath, "*Theme.xaml")
+                    .Select(f => Path.GetFileNameWithoutExtension(f))
+                    .ToHashSet();
+                System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: Found {customThemeNames.Count} custom themes");
+            }
+
+            // Built-in theme display names
+            var builtInThemeNames = new Dictionary<string, string>
+            {
+                { "DarkTheme", "Dark 🌙" },
+                { "LightTheme", "Light ☀️" },
+                { "NordTheme", "Nord 🌊" },
+                { "DraculaTheme", "Dracula 🦇" },
+                { "OceanTheme", "Ocean 🌅" },
+                { "SunsetTheme", "Sunset 🌇" },
+                { "CyberpunkTheme", "Cyberpunk 🌈" },
+                { "ForestTheme", "Forest 🌿" },
+                { "ArcticTheme", "Arctic ❄️" },
+                { "HalloweenTheme", "Halloween 🎃" },
+                { "ChristmasTheme", "Christmas 🎄" },
+                { "DiwaliTheme", "Diwali 🪔" },
+                { "HanukkahTheme", "Hanukkah 🕎" },
+                { "EidTheme", "Eid 🌙" },
+                { "LunarNewYearTheme", "Lunar New Year 🧧" },
+                { "EasterTheme", "Easter 🐣" },
+                { "NowruzTheme", "Nowruz 🌱" },
+                { "RamadanTheme", "Ramadan 🌙" },
+                { "PrideTheme", "Pride 🏳️‍🌈" }
+            };
+
+            // Remove themes that no longer exist
+            var themesToRemove = AvailableThemes.Where(t => !availableThemeNames.Contains(t.Name)).ToList();
+            foreach (var theme in themesToRemove)
+            {
+                System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: Removing theme {theme.Name}");
+                AvailableThemes.Remove(theme);
+            }
+
+            // Update existing themes and add new ones
+            int addedCount = 0;
+            int updatedCount = 0;
+            foreach (var themeName in availableThemeNames)
+            {
+                var existingTheme = AvailableThemes.FirstOrDefault(t => t.Name == themeName);
+                var isCustom = customThemeNames.Contains(themeName);
+
+                // Get display name
+                string displayName;
+                if (builtInThemeNames.TryGetValue(themeName, out var builtInName))
+                {
+                    displayName = isCustom ? $"{builtInName} ✏️" : builtInName;
+                }
+                else
+                {
+                    // Custom theme - try to load it to get the display name
+                    var theme = themeService.LoadThemeFromFile(themeName);
+                    if (theme != null)
+                    {
+                        displayName = $"{theme.DisplayName} ✏️";
+                    }
+                    else
+                    {
+                        displayName = themeName.Replace("Theme", "") + " ✏️";
+                    }
+                }
+
+                if (existingTheme != null)
+                {
+                    // Update display name
+                    existingTheme.DisplayName = displayName;
+                    updatedCount++;
+                }
+                else
+                {
+                    // Add new theme
+                    AvailableThemes.Add(new ThemeOption
+                    {
+                        Name = themeName,
+                        DisplayName = displayName
+                    });
+                    addedCount++;
+                    System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: Added theme {themeName} as '{displayName}'");
+                }
+            }
+
+            System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: Added {addedCount}, Updated {updatedCount}, Total themes: {AvailableThemes.Count}");
+
+            // Sort: custom themes first, then alphabetically
+            var sortedThemes = AvailableThemes.OrderByDescending(t => t.DisplayName.Contains("✏️"))
+                .ThenBy(t => t.DisplayName.Replace(" ✏️", ""))
+                .ToList();
+
+            AvailableThemes.Clear();
+            foreach (var theme in sortedThemes)
+            {
+                AvailableThemes.Add(theme);
+            }
+
+            System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: After sorting, have {AvailableThemes.Count} themes");
+
+            // Restore previous selection if it still exists
+            if (!string.IsNullOrEmpty(currentSelection))
+            {
+                var previousTheme = AvailableThemes.FirstOrDefault(t => t.Name == currentSelection);
+                if (previousTheme != null)
+                {
+                    SelectedTheme = previousTheme;
+                    System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: Restored selection to {currentSelection}");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: Could not restore selection {currentSelection}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"RefreshAvailableThemes: ERROR - {ex.Message}");
+            StatusMessage = $"Error refreshing themes: {ex.Message}";
+        }
+    }
+
+    private void InitializeAvailableThemes()
+    {
+        // Use RefreshAvailableThemes to properly load all themes with custom indicators
+        RefreshAvailableThemes();
+    }
 
  [ObservableProperty]
  private ThemeOption? _selectedTheme;
@@ -177,6 +307,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
  private void Initialize()
  {
+ // Initialize available themes
+ InitializeAvailableThemes();
+
  if (_midiService != null)
  {
  _midiService.ControlChangeReceived += OnMidiControlChange;
@@ -245,22 +378,72 @@ public partial class MainWindowViewModel : ViewModelBase
  // Theme will be loaded from config or default to DarkTheme
  if (SelectedTheme == null)
  {
+ // Try to find DarkTheme first
  SelectedTheme = AvailableThemes.FirstOrDefault(t => t.Name == "DarkTheme");
+
+ // If DarkTheme not found, use any available theme
+ if (SelectedTheme == null)
+ {
+ SelectedTheme = AvailableThemes.FirstOrDefault();
+ }
+
+ // Apply the theme if we found one
+ if (SelectedTheme != null)
+ {
  ApplyTheme(SelectedTheme);
+ }
+ else
+ {
+ System.Diagnostics.Debug.WriteLine("Warning: No themes available!");
+ StatusMessage = "Warning: No themes available. Please check theme installation.";
+ }
  }
  UpdateWindowSize();
  }
- partial void OnSelectedThemeChanged(ThemeOption? value)
+ partial void OnSelectedThemeChanged(ThemeOption? oldValue, ThemeOption? newValue)
  {
- if (value != null)
- ApplyTheme(value);
+ if (newValue != null)
+ {
+ System.Diagnostics.Debug.WriteLine($"Theme changing from {oldValue?.Name} to {newValue.Name}");
+ ApplyTheme(newValue);
+ }
  }
 
- private void ApplyTheme(ThemeOption theme)
+ private void ApplyTheme(ThemeOption? theme)
  {
  try
  {
+ if (theme == null)
+ {
+ System.Diagnostics.Debug.WriteLine("ApplyTheme called with null theme, ignoring");
+ return;
+ }
+
+ System.Diagnostics.Debug.WriteLine($"Applying theme: {theme.Name}");
+
+ // Clear all resource dictionaries to ensure clean slate
  Application.Current.Resources.MergedDictionaries.Clear();
+
+ // Clear individual theme resources that might have been set by live preview
+ var themeKeys = new[]
+ {
+ "BackgroundColor", "SurfaceColor", "SurfaceHighlightColor",
+ "PrimaryColor", "PrimaryDarkColor", "AccentColor",
+ "TextPrimaryColor", "TextSecondaryColor", "BorderColor",
+ "ErrorColor", "WarningColor", "SuccessColor",
+ "BackgroundBrush", "SurfaceBrush", "SurfaceHighlightBrush",
+ "PrimaryBrush", "PrimaryDarkBrush", "AccentBrush",
+ "TextPrimaryBrush", "TextSecondaryBrush", "TextBrush",
+ "BorderBrush", "ErrorBrush", "WarningBrush", "SuccessBrush"
+ };
+
+ foreach (var key in themeKeys)
+ {
+ if (Application.Current.Resources.Contains(key))
+ {
+ Application.Current.Resources.Remove(key);
+ }
+ }
 
  // Base styles
  var baseStyles = new ResourceDictionary
@@ -269,17 +452,40 @@ public partial class MainWindowViewModel : ViewModelBase
  };
  Application.Current.Resources.MergedDictionaries.Add(baseStyles);
 
- // Selected theme
- var themeDict = new ResourceDictionary
+ // Try to load theme from physical file first (user-created themes in AppData)
+ var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+ var physicalThemePath = Path.Combine(appDataPath, "Mideej", "Themes", $"{theme.Name}.xaml");
+
+ ResourceDictionary? themeDict = null;
+
+ if (File.Exists(physicalThemePath))
+ {
+ // Load from physical file
+ themeDict = new ResourceDictionary
+ {
+ Source = new Uri(physicalThemePath, UriKind.Absolute)
+ };
+ }
+ else
+ {
+ // Load from embedded resource (built-in themes)
+ themeDict = new ResourceDictionary
  {
  Source = new Uri($"pack://application:,,,/Themes/{theme.Name}.xaml", UriKind.Absolute)
  };
+ }
+
  Application.Current.Resources.MergedDictionaries.Add(themeDict);
 
+ System.Diagnostics.Debug.WriteLine($"Theme applied successfully: {theme.Name}");
  StatusMessage = $"Theme applied: {theme.DisplayName}";
+
+ // Force UI refresh
+ Application.Current.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render);
  }
  catch (Exception ex)
  {
+ System.Diagnostics.Debug.WriteLine($"Error applying theme: {ex.Message}");
  StatusMessage = $"Error applying theme: {ex.Message}";
  }
  }
@@ -454,6 +660,40 @@ public partial class MainWindowViewModel : ViewModelBase
  {
  IsFullScreenMode = !IsFullScreenMode;
  StatusMessage = IsFullScreenMode ? "Full Screen Mode" : "Normal Mode";
+
+ if (IsFullScreenMode)
+ {
+ // Entering fullscreen: save current width and maximize
+ _savedWindowWidth = WindowWidth;
+ MaxWindowWidth = 10000;
+
+ // Get the actual screen bounds where the window is currently located
+ try
+ {
+ var window = System.Windows.Application.Current.MainWindow;
+ if (window != null)
+ {
+ var screen = System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(window).Handle);
+ WindowWidth = screen.Bounds.Width;
+ }
+ else
+ {
+ // Fallback to primary screen if window not found
+ WindowWidth = System.Windows.SystemParameters.PrimaryScreenWidth;
+ }
+ }
+ catch
+ {
+ // Fallback to primary screen on error
+ WindowWidth = System.Windows.SystemParameters.PrimaryScreenWidth;
+ }
+ }
+ else
+ {
+ // Exit fullscreen: restore saved width and lock to channel count
+ WindowWidth = _savedWindowWidth;
+ UpdateWindowSize();
+ }
  }
 
  [RelayCommand]
@@ -635,10 +875,16 @@ public partial class MainWindowViewModel : ViewModelBase
 
  int channelCount = Math.Max(minChannels, Math.Min(Channels.Count, maxChannels));
  double calculatedWidth = (channelCount * channelWidth) + windowChrome;
- 
+
  // Update minimum width to fit all channels (use actual channel count, not clamped)
  MinWindowWidth = Math.Max(600, (Channels.Count * channelWidth) + windowChrome);
- 
+
+ // Lock max width to min width unless in fullscreen mode
+ if (!IsFullScreenMode)
+ {
+ MaxWindowWidth = MinWindowWidth;
+ }
+
  // Only update window width if it would be larger than current or if current is smaller than min
  if (WindowWidth < MinWindowWidth)
  {
@@ -705,15 +951,30 @@ public partial class MainWindowViewModel : ViewModelBase
  {
  if (sender is ChannelViewModel soloedChannel && soloedChannel.IsSoloed)
  {
+ // DEBUG: Log solo attempt for Edge
+ var isEdge = soloedChannel.AssignedSessions.Any(s => s.DisplayName?.ToLowerInvariant().Contains("edge") ?? false);
+ if (isEdge)
+ {
+ var edgeSession = soloedChannel.AssignedSessions.FirstOrDefault(s => s.DisplayName?.ToLowerInvariant().Contains("edge") ?? false);
+ Debug.WriteLine($"[OnChannelSoloChanged] Edge solo attempt - Channel: {soloedChannel.Name}, SessionId: {edgeSession?.SessionId}, IsEdge: {isEdge}");
+ }
+
  // Prevent soloing system devices (master volume, input/output devices)
- if (soloedChannel.AssignedSessions.Any(s => 
+ if (soloedChannel.AssignedSessions.Any(s =>
  s.SessionId == "master_output" ||
  s.SessionId.StartsWith("input_") ||
  s.SessionId.StartsWith("output_")))
  {
  soloedChannel.IsSoloed = false;
  StatusMessage = "Cannot solo system audio devices";
+ Debug.WriteLine($"[OnChannelSoloChanged] Solo blocked - system device");
  return;
+ }
+
+ // DEBUG: Log successful Edge solo
+ if (isEdge)
+ {
+ Debug.WriteLine($"[OnChannelSoloChanged] Edge solo ALLOWED - applying solo logic");
  }
 
  // Exclusive solo - unsolo all other channels
@@ -1942,9 +2203,9 @@ public partial class MainWindowViewModel : ViewModelBase
  {
  // During solo operations, don't mute system devices (master, input, output)
  // But allow manual mute to work on all devices
- if (isFromSolo && 
- (session.SessionId == "master_output" || 
- session.SessionId.StartsWith("input_") || 
+ if (isFromSolo &&
+ (session.SessionId == "master_output" ||
+ session.SessionId.StartsWith("input_") ||
  session.SessionId.StartsWith("output_")))
  {
  continue;
@@ -2033,15 +2294,24 @@ public partial class MainWindowViewModel : ViewModelBase
  /// Turns off all LEDs on the connected MIDI controller(s).
  /// Sends both Note and CC off for known mappings and resets common MIDI controllers.
  /// </summary>
- private void TurnOffAllLeds()
+ public void TurnOffAllLeds()
  {
  try
  {
  // Allow cleanup even if IsMidiConnected is already false due to teardown
  if (_midiService == null)
+ {
+ Console.WriteLine("[TurnOffAllLeds] MidiService is null, skipping LED cleanup");
  return;
+ }
 
- Console.WriteLine("Turning off all controller LEDs...");
+ if (!_midiService.IsConnected)
+ {
+ Console.WriteLine("[TurnOffAllLeds] MIDI not connected, skipping LED cleanup");
+ return;
+ }
+
+ Console.WriteLine("[TurnOffAllLeds] Turning off all controller LEDs...");
 
  // Send global resets on all MIDI channels (0-15) to be thorough
  for (int ch =0; ch <16; ch++)
@@ -2051,6 +2321,8 @@ public partial class MainWindowViewModel : ViewModelBase
  _midiService.SendControlChange(ch,121,0);
  _midiService.SendControlChange(ch,123,0);
  }
+
+ Console.WriteLine($"[TurnOffAllLeds] Sent global reset commands on 16 channels");
 
  // Turn off all mapped LEDs explicitly (Note and CC), and send NoteOff too
  foreach (var mapping in _midiMappings.Values)
@@ -2069,16 +2341,19 @@ public partial class MainWindowViewModel : ViewModelBase
  name.Contains("M-Vave", StringComparison.OrdinalIgnoreCase) ||
  name.Contains("SINCO", StringComparison.OrdinalIgnoreCase))
  {
+ Console.WriteLine($"[TurnOffAllLeds] Detected M-Vave/SMC controller, turning off matrix LEDs");
  for (int note =0x00; note <=0x17; note++)
  {
  _midiService.SendNoteOn(0, note,0);
  _midiService.SendNoteOff(0, note);
  }
  }
+
+ Console.WriteLine("[TurnOffAllLeds] LED cleanup completed successfully");
  }
  catch (Exception ex)
  {
- Console.WriteLine($"Error while turning off LEDs: {ex.Message}");
+ Console.WriteLine($"[TurnOffAllLeds] Error while turning off LEDs: {ex.Message}");
  }
  }
 
@@ -2190,10 +2465,8 @@ public partial class MainWindowViewModel : ViewModelBase
  var target = ResolveStartupTargetPath();
  if (!string.IsNullOrEmpty(target))
  {
- // Use dfshim for ClickOnce appref-ms for reliability; otherwise run the exe directly
- string startupValue = target.EndsWith(".appref-ms", StringComparison.OrdinalIgnoreCase)
- ? $"rundll32.exe dfshim.dll,ShOpenVerbShortcut \"{target}\""
- : $"\"{target}\"";
+ // Set the direct path to the executable or .appref-ms file
+ string startupValue = $"\"{target}\"";
  startupKey.SetValue(appName, startupValue);
  Console.WriteLine($"Added to Windows startup: {startupValue}");
  }
@@ -2559,16 +2832,41 @@ public partial class MainWindowViewModel : ViewModelBase
  }
 
  /// <summary>
- /// Syncs the channel's UI state with the actual audio session state
+ /// Syncs the channel's UI state with the actual audio session state.
+ /// For master_output: sync FROM session TO channel.
+ /// For other sessions: apply channel state TO sessions to maintain consistency.
  /// </summary>
  private void SyncChannelStateFromSession(ChannelViewModel channel)
 {
-        // Find master_output session and sync its mute state
+        // Find master_output session and sync its mute state FROM session TO channel
         var masterSession = channel.AssignedSessions.FirstOrDefault(s => s.SessionId == "master_output");
         if (masterSession != null)
         {
             channel.IsMuted = masterSession.IsMuted;
-            Console.WriteLine($"Synced {channel.Name} mute state: {masterSession.IsMuted}");
+            Console.WriteLine($"Synced {channel.Name} mute state from master_output: {masterSession.IsMuted}");
+        }
+        else
+        {
+            // For non-master channels, apply the channel's stored state TO the newly relinked sessions
+            // This ensures that when apps like Spotify create new sessions (e.g., on track change),
+            // they inherit the channel's mute state
+            if (channel.AssignedSessions.Count > 0)
+            {
+                // Apply mute state to all assigned sessions
+                foreach (var session in channel.AssignedSessions)
+                {
+                    if (_audioSessionManager != null)
+                    {
+                        // Only apply if the channel has a defined mute state
+                        // This preserves mute state across session recreation
+                        if (channel.IsMuted)
+                        {
+                            _audioSessionManager.SetSessionMute(session.SessionId, true);
+                            Console.WriteLine($"Applied mute state to relinked session: {session.DisplayName} in {channel.Name}");
+                        }
+                    }
+                }
+            }
         }
     }
 

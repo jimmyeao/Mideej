@@ -136,12 +136,30 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        // Always allow closing - don't intercept the close button
-        _notifyIcon?.Dispose();
+        Console.WriteLine("[MainWindow.Closing] Window closing event triggered");
+
+        // Turn off LEDs first (synchronous to ensure it completes)
         if (DataContext is MainWindowViewModel vm)
         {
+            try
+            {
+                Console.WriteLine("[MainWindow.Closing] Calling TurnOffAllLeds()");
+                vm.TurnOffAllLeds();
+                // Give MIDI messages time to be sent
+                System.Threading.Thread.Sleep(100);
+                Console.WriteLine("[MainWindow.Closing] LED cleanup complete");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MainWindow.Closing] Error turning off LEDs: {ex.Message}");
+            }
+
             await vm.SaveConfigurationAsync();
         }
+
+        // Always allow closing - don't intercept the close button
+        _notifyIcon?.Dispose();
+        Console.WriteLine("[MainWindow.Closing] Window closing handler complete");
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
