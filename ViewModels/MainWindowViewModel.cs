@@ -316,6 +316,7 @@ public partial class MainWindowViewModel : ViewModelBase
  _midiService.NoteOnReceived += OnMidiNoteOn;
  _midiService.PitchBendReceived += OnMidiPitchBend;
  _midiService.DeviceStateChanged += OnMidiDeviceStateChanged;
+ _midiService.ErrorOccurred += OnMidiError;
  RefreshMidiDevices();
  }
 
@@ -1987,6 +1988,12 @@ public partial class MainWindowViewModel : ViewModelBase
  {
  IsMidiConnected = e.IsConnected;
  StatusMessage = e.IsConnected ? $"Connected to {e.Device.Name}" : "MIDI device disconnected";
+ }
+
+ private void OnMidiError(object? sender, string errorMessage)
+ {
+ StatusMessage = $"⚠ MIDI Error: {errorMessage}";
+ Console.WriteLine($"[MIDI Error] {errorMessage}");
  }
 
  private void OnMasterMuteChanged(object? sender, MasterMuteChangedEventArgs e)

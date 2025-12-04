@@ -170,7 +170,21 @@ public partial class MainWindow : Window
         }
         else
         {
-            DragMove();
+            try
+            {
+                // Only allow dragging if window state is Normal or Maximized
+                // Maximized state will be handled by DragMove - it will restore and then drag
+                if (WindowState != WindowState.Minimized && e.LeftButton == MouseButtonState.Pressed)
+                {
+                    DragMove();
+                }
+            }
+            catch (Exception ex)
+            {
+                // DragMove can throw InvalidOperationException if called at wrong time
+                // Log but don't crash the app
+                Console.WriteLine($"Error during window drag: {ex.Message}");
+            }
         }
     }
 

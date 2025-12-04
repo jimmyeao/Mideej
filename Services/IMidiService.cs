@@ -33,6 +33,11 @@ public interface IMidiService
     event EventHandler<MidiDeviceEventArgs>? DeviceStateChanged;
 
     /// <summary>
+    /// Event fired when a MIDI error occurs
+    /// </summary>
+    event EventHandler<string>? ErrorOccurred;
+
+    /// <summary>
     /// Gets all available MIDI input devices
     /// </summary>
     List<MidiDeviceInfo> GetAvailableDevices();

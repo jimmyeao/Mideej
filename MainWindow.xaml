@@ -24,8 +24,8 @@
         ResizeMode="CanResize">
     
     <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome 
-            CaptionHeight="0"
+        <shell:WindowChrome
+            CaptionHeight="40"
             ResizeBorderThickness="5"
             CornerRadius="12"
             GlassFrameThickness="0"/>
@@ -48,8 +48,7 @@
             <Border Grid.Row="0"
                     Background="{DynamicResource SurfaceBrush}"
                     CornerRadius="12,12,0,0"
-                    Padding="0,8"
-                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                    Padding="0,8">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -89,14 +88,17 @@
                                 Style="{StaticResource IconButton}"
                                 Command="{Binding ToggleFullScreenModeCommand}"
                                 ToolTip="Toggle Full Screen Mode"
+                                shell:WindowChrome.IsHitTestVisibleInChrome="True"
                                 Margin="4,0"/>
                         <Button Content="—"
                                 Style="{StaticResource IconButton}"
                                 Click="MinimizeButton_Click"
+                                shell:WindowChrome.IsHitTestVisibleInChrome="True"
                                 Margin="4,0"/>
                         <Button Content="✕"
                                 Style="{StaticResource IconButton}"
                                 Click="CloseButton_Click"
+                                shell:WindowChrome.IsHitTestVisibleInChrome="True"
                                 Margin="4,0"/>
                     </StackPanel>
                 </Grid>
