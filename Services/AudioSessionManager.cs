@@ -268,6 +268,11 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 {
                     Debug.WriteLine($"[GetActiveSessions] Unexpected error for session {i}: {ex.GetType().Name} - {ex.Message}");
                 }
+                finally
+                {
+                    // Dispose COM object to prevent memory leak
+                    session?.Dispose();
+                }
             }
         }
         catch (Exception ex)
@@ -601,9 +606,10 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         // Search through all sessions on this device
                         for (int i = 0; i < sessions.Count; i++)
                         {
+                            AudioSessionControl? session = null;
                             try
                             {
-                                var session = sessions[i];
+                                session = sessions[i];
                                 if (session == null) continue;
 
                                 int pid = (int)session.GetProcessID;
@@ -633,6 +639,11 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                             }
                             catch (ArgumentException) { continue; }
                             catch { continue; }
+                            finally
+                            {
+                                // Dispose COM object to prevent memory leak
+                                session?.Dispose();
+                            }
                         }
                     }
                     catch { continue; }
@@ -685,9 +696,10 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
             for (int i = 0; i < sessions.Count; i++)
             {
+                AudioSessionControl? session = null;
                 try
                 {
-                    var session = sessions[i];
+                    session = sessions[i];
                     int pid = (int)session.GetProcessID;
                     if (pid < 100) continue;
 
@@ -709,6 +721,11 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 catch (Exception innerEx)
                 {
                     Debug.WriteLine($"[GetPeakLevelByEnumeration] Inner error: {innerEx.Message}");
+                }
+                finally
+                {
+                    // Dispose COM object to prevent memory leak
+                    session?.Dispose();
                 }
             }
 
@@ -738,9 +755,10 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
             for (int i = 0; i < sessions.Count; i++)
             {
+                AudioSessionControl? session = null;
                 try
                 {
-                    var session = sessions[i];
+                    session = sessions[i];
                     int pid = (int)session.GetProcessID;
                     if (pid < 100) continue;
 
@@ -755,6 +773,11 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                     }
                 }
                 catch { /* Skip invalid session */ }
+                finally
+                {
+                    // Dispose COM object to prevent memory leak
+                    session?.Dispose();
+                }
             }
         }
         catch (Exception ex)
@@ -775,9 +798,10 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
             for (int i = 0; i < sessions.Count; i++)
             {
+                AudioSessionControl? session = null;
                 try
                 {
-                    var session = sessions[i];
+                    session = sessions[i];
                     int pid = (int)session.GetProcessID;
                     if (pid < 100) continue;
 
@@ -790,6 +814,11 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                     }
                 }
                 catch { /* Skip invalid session */ }
+                finally
+                {
+                    // Dispose COM object to prevent memory leak
+                    session?.Dispose();
+                }
             }
         }
         catch (Exception ex)
@@ -810,9 +839,10 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
 
             for (int i = 0; i < sessions.Count; i++)
             {
+                AudioSessionControl? session = null;
                 try
                 {
-                    var session = sessions[i];
+                    session = sessions[i];
                     int pid = (int)session.GetProcessID;
                     if (pid < 100) continue;
 
@@ -823,6 +853,11 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                         return session.AudioMeterInformation.MasterPeakValue;
                 }
                 catch { /* Skip invalid session */ }
+                finally
+                {
+                    // Dispose COM object to prevent memory leak
+                    session?.Dispose();
+                }
             }
         }
         catch { /* Ignore */ }
@@ -906,9 +941,10 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                 var processPeaks = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
                 for (int i = 0; i < sessions.Count; i++)
                 {
+                    AudioSessionControl? session = null;
                     try
                     {
-                        var session = sessions[i];
+                        session = sessions[i];
                         int pid = (int)session.GetProcessID;
                         if (pid < 100) continue;
 
@@ -924,8 +960,13 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
                             processPeaks[cleanedProcName] = peak;
                         }
                     }
-                    catch (ArgumentException) { continue; }
-                    catch { continue; }
+                    catch (ArgumentException) { }
+                    catch { }
+                    finally
+                    {
+                        // Dispose COM object to prevent memory leak
+                        session?.Dispose();
+                    }
                 }
 
                 // Map cached sessions to their peak levels using fuzzy matching
