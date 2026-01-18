@@ -209,16 +209,9 @@ public partial class MainWindow : Window
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
-        // Route close button through the same logic as window closing
-        if (DataContext is MainWindowViewModel vm && vm.MinimizeToTray)
-        {
-            WindowState = WindowState.Minimized;
-            MinimizeToTrayNow(showBalloon: false);
-        }
-        else
-        {
-            Close();
-        }
+        // Delegate to the standard closing pipeline
+        // MainWindow_Closing will handle MinimizeToTray interception when enabled
+        Close();
     }
 
     private void MaximizeRestore()
