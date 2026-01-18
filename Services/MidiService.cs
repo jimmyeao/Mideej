@@ -12,12 +12,15 @@ public class MidiService : IMidiService, IDisposable
     private MidiOut? _midiOut;
     private MidiDeviceInfo? _currentDevice;
     private bool _isMappingMode;
+    private int _errorCount;
+    private const int MAX_ERRORS_BEFORE_DISCONNECT = 10;
 
     public event EventHandler<MidiControlChangeEventArgs>? ControlChangeReceived;
     public event EventHandler<MidiNoteEventArgs>? NoteOnReceived;
     public event EventHandler<MidiNoteEventArgs>? NoteOffReceived;
     public event EventHandler<MidiPitchBendEventArgs>? PitchBendReceived;
     public event EventHandler<MidiDeviceEventArgs>? DeviceStateChanged;
+    public event EventHandler<string>? ErrorOccurred;
 
     public bool IsConnected => _midiIn != null;
     public MidiDeviceInfo? CurrentDevice => _currentDevice;
@@ -124,6 +127,9 @@ public class MidiService : IMidiService, IDisposable
                     IsConnected = true
                 };
 
+                // Reset error count on successful connection
+                _errorCount = 0;
+
                 // Start receiving MIDI messages
                 _midiIn.Start();
 
@@ -208,6 +214,12 @@ public class MidiService : IMidiService, IDisposable
     {
         try
         {
+            // Reset error count when we successfully receive messages (connection is working)
+            if (_errorCount > 0)
+            {
+                _errorCount = 0;
+            }
+
             var message = e.MidiEvent;
 
             switch (message.CommandCode)
@@ -311,7 +323,26 @@ public class MidiService : IMidiService, IDisposable
 
     private void OnMidiErrorReceived(object? sender, MidiInMessageEventArgs e)
     {
-        Console.WriteLine($"MIDI Error: {e.MidiEvent}");
+        _errorCount++;
+        string errorMsg = $"MIDI Error ({_errorCount}/{MAX_ERRORS_BEFORE_DISCONNECT}): {e.MidiEvent}";
+        Console.WriteLine(errorMsg);
+
+        // Notify listeners about the error
+        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            ErrorOccurred?.Invoke(this, errorMsg);
+        });
+
+        // If we've accumulated too many errors, the device is likely disconnected
+        if (_errorCount >= MAX_ERRORS_BEFORE_DISCONNECT)
+        {
+            Console.WriteLine($"Too many MIDI errors ({_errorCount}). Device may be disconnected. Please disconnect and reconnect.");
+
+            System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+            {
+                ErrorOccurred?.Invoke(this, "MIDI device appears to be disconnected. Please disconnect and reconnect.");
+            });
+        }
     }
 
     public void SendControlChange(int channel, int controller, int value)
@@ -326,7 +357,12 @@ public class MidiService : IMidiService, IDisposable
         }
         catch (Exception ex)
         {
+            _errorCount++;
             Console.WriteLine($"Error sending MIDI CC: {ex.Message}");
+            System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+            {
+                ErrorOccurred?.Invoke(this, $"Error sending MIDI: {ex.Message}");
+            });
         }
     }
 
@@ -342,7 +378,12 @@ public class MidiService : IMidiService, IDisposable
         }
         catch (Exception ex)
         {
+            _errorCount++;
             Console.WriteLine($"Error sending MIDI Note On: {ex.Message}");
+            System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+            {
+                ErrorOccurred?.Invoke(this, $"Error sending MIDI: {ex.Message}");
+            });
         }
     }
 
@@ -358,7 +399,12 @@ public class MidiService : IMidiService, IDisposable
         }
         catch (Exception ex)
         {
+            _errorCount++;
             Console.WriteLine($"Error sending MIDI Note Off: {ex.Message}");
+            System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+            {
+                ErrorOccurred?.Invoke(this, $"Error sending MIDI: {ex.Message}");
+            });
         }
     }
 
@@ -374,7 +420,12 @@ public class MidiService : IMidiService, IDisposable
         }
         catch (Exception ex)
         {
+            _errorCount++;
             Console.WriteLine($"Error sending MIDI Pitch Bend: {ex.Message}");
+            System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+            {
+                ErrorOccurred?.Invoke(this, $"Error sending MIDI: {ex.Message}");
+            });
         }
     }
 

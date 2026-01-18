@@ -316,6 +316,7 @@ public partial class MainWindowViewModel : ViewModelBase
  _midiService.NoteOnReceived += OnMidiNoteOn;
  _midiService.PitchBendReceived += OnMidiPitchBend;
  _midiService.DeviceStateChanged += OnMidiDeviceStateChanged;
+ _midiService.ErrorOccurred += OnMidiError;
  RefreshMidiDevices();
  }
 
@@ -1702,10 +1703,60 @@ public partial class MainWindowViewModel : ViewModelBase
  {
  if (_audioSessionManager == null) return;
 
+ // Check if channel should have volume applied (not muted and not blocked by solo)
+ if (ShouldApplyVolume(channel))
+ {
  foreach (var session in channel.AssignedSessions)
  {
  _audioSessionManager.SetSessionVolume(session.SessionId, channel.Volume);
  }
+ }
+ }
+
+ private bool ShouldApplyVolume(ChannelViewModel channel)
+ {
+ // Don't apply volume if channel is muted
+ if (channel.IsMuted)
+ return false;
+
+ // Check if any channel is soloed
+ bool anySoloed = false;
+ bool isThisChannelSoloed = false;
+
+ for (int i = 0; i < Channels.Count; i++)
+ {
+ if (Channels[i].IsSoloed)
+ {
+ anySoloed = true;
+ if (Channels[i] == channel)
+ isThisChannelSoloed = true;
+ }
+ }
+
+ // If solo is active and this channel isn't soloed, check if it's a system device
+ if (anySoloed && !isThisChannelSoloed)
+ {
+ // Check if this channel contains only system devices (master, input, output)
+ // System devices are not muted during solo
+ bool isSystemDeviceChannel = true;
+ for (int i = 0; i < channel.AssignedSessions.Count; i++)
+ {
+ var sessionId = channel.AssignedSessions[i].SessionId;
+ if (sessionId != "master_output" &&
+ !sessionId.StartsWith("input_") &&
+ !sessionId.StartsWith("output_"))
+ {
+ isSystemDeviceChannel = false;
+ break;
+ }
+ }
+
+ // If it's not a system device channel, don't apply volume (solo blocks it)
+ if (!isSystemDeviceChannel)
+ return false;
+ }
+
+ return true;
  }
 
  // --- Transport LED helpers ---
@@ -1989,6 +2040,12 @@ public partial class MainWindowViewModel : ViewModelBase
  StatusMessage = e.IsConnected ? $"Connected to {e.Device.Name}" : "MIDI device disconnected";
  }
 
+ private void OnMidiError(object? sender, string errorMessage)
+ {
+ StatusMessage = $"⚠ MIDI Error: {errorMessage}";
+ Console.WriteLine($"[MIDI Error] {errorMessage}");
+ }
+
  private void OnMasterMuteChanged(object? sender, MasterMuteChangedEventArgs e)
  {
  // Ensure we run UI updates on the UI thread
@@ -2173,24 +2230,47 @@ public partial class MainWindowViewModel : ViewModelBase
 
  private void ApplySoloLogic()
  {
- // If any channel is soloed, mute all non-soloed channels
- var soloedChannels = Channels.Where(c => c.IsSoloed).ToList();
+ // Check if any channel is soloed (avoid LINQ for performance)
+ bool hasSoloedChannel = false;
+ for (int i = 0; i < Channels.Count; i++)
+ {
+ if (Channels[i].IsSoloed)
+ {
+ hasSoloedChannel = true;
+ break;
+ }
+ }
 
- if (soloedChannels.Any())
+ if (hasSoloedChannel)
  {
  // Mute all non-soloed channels (skip system devices during solo)
- foreach (var channel in Channels)
+ for (int i = 0; i < Channels.Count; i++)
  {
+ var channel = Channels[i];
  bool shouldBeMuted = !channel.IsSoloed;
  ApplyEffectiveMute(channel, shouldBeMuted, isFromSolo: true);
+
+ // Apply volume for soloed channels (in case fader was moved while not soloed)
+ // Only if the channel is actually becoming unmuted by solo
+ if (!shouldBeMuted && !channel.IsMuted)
+ {
+ ApplyVolumeToSessions(channel);
+ }
  }
  }
  else
  {
  // No solo active, restore user mute states (skip system devices)
- foreach (var channel in Channels)
+ for (int i = 0; i < Channels.Count; i++)
  {
+ var channel = Channels[i];
  ApplyEffectiveMute(channel, channel.IsMuted, isFromSolo: true);
+
+ // Apply volume for unmuted channels (in case fader was moved while soloed)
+ if (!channel.IsMuted)
+ {
+ ApplyVolumeToSessions(channel);
+ }
  }
  }
  }
@@ -2244,6 +2324,13 @@ public partial class MainWindowViewModel : ViewModelBase
  foreach (var session in channel.AssignedSessions)
  {
  _audioSessionManager.SetSessionMute(session.SessionId, channel.IsMuted);
+ }
+
+ // When unmuting, apply the current volume to ensure it's correct
+ // (in case the fader was moved while muted)
+ if (!channel.IsMuted)
+ {
+ ApplyVolumeToSessions(channel);
  }
  }
  
