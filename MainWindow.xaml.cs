@@ -138,7 +138,17 @@ public partial class MainWindow : Window
     {
         Console.WriteLine("[MainWindow.Closing] Window closing event triggered");
 
-        // Turn off LEDs first (synchronous to ensure it completes)
+        // If user clicked the window close button (not tray Exit), just minimize to tray
+        if (!_isClosing && DataContext is MainWindowViewModel vmSettings && vmSettings.MinimizeToTray)
+        {
+            e.Cancel = true;
+            // Mirror minimize behavior: hide to tray without balloon (user explicitly closed)
+            MinimizeToTrayNow(showBalloon: false);
+            Console.WriteLine("[MainWindow.Closing] Intercepted close, minimized to tray instead");
+            return;
+        }
+
+        // Real application exit path (tray Exit or MinimizeToTray disabled)
         if (DataContext is MainWindowViewModel vm)
         {
             try
@@ -157,7 +167,6 @@ public partial class MainWindow : Window
             await vm.SaveConfigurationAsync();
         }
 
-        // Always allow closing - don't intercept the close button
         _notifyIcon?.Dispose();
         Console.WriteLine("[MainWindow.Closing] Window closing handler complete");
     }
@@ -200,6 +209,8 @@ public partial class MainWindow : Window
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
+        // Delegate to the standard closing pipeline
+        // MainWindow_Closing will handle MinimizeToTray interception when enabled
         Close();
     }
 
