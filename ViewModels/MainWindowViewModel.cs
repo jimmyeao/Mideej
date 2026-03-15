@@ -317,6 +317,7 @@ public partial class MainWindowViewModel : ViewModelBase
  _midiService.PitchBendReceived += OnMidiPitchBend;
  _midiService.DeviceStateChanged += OnMidiDeviceStateChanged;
  _midiService.ErrorOccurred += OnMidiError;
+ _midiService.ReconnectionAttempted += OnMidiReconnectionAttempted;
  RefreshMidiDevices();
  }
 
@@ -1706,11 +1707,42 @@ public partial class MainWindowViewModel : ViewModelBase
  // Check if channel should have volume applied (not muted and not blocked by solo)
  if (ShouldApplyVolume(channel))
  {
+ // Use efficient single-enumeration path for unmapped apps
+ if (channel.IntendedAssignments.Any(r => r.SessionId == "unmapped_apps"))
+ {
+ var mappedNames = GetMappedProcessNames();
+ _audioSessionManager.ApplyVolumeToUnmappedApplications(channel.Volume, channel.IsMuted, mappedNames);
+ }
+ else
+ {
  foreach (var session in channel.AssignedSessions)
  {
  _audioSessionManager.SetSessionVolume(session.SessionId, channel.Volume);
  }
  }
+ }
+ }
+
+ /// <summary>
+ /// Gets the set of process names that are explicitly mapped to channels (excluding unmapped_apps).
+ /// Used to determine which apps should be controlled by the unmapped apps channel.
+ /// </summary>
+ private HashSet<string> GetMappedProcessNames()
+ {
+ var mapped = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+ foreach (var ch in Channels)
+ {
+ foreach (var intent in ch.IntendedAssignments)
+ {
+ if (intent.SessionId == "unmapped_apps" || intent.SessionId == "focused_app")
+ continue;
+ if (!string.IsNullOrWhiteSpace(intent.ProcessName))
+ {
+ mapped.Add(Path.GetFileNameWithoutExtension(intent.ProcessName).ToLowerInvariant());
+ }
+ }
+ }
+ return mapped;
  }
 
  private bool ShouldApplyVolume(ChannelViewModel channel)
@@ -2046,6 +2078,34 @@ public partial class MainWindowViewModel : ViewModelBase
  Console.WriteLine($"[MIDI Error] {errorMessage}");
  }
 
+ private void OnMidiReconnectionAttempted(object? sender, bool success)
+ {
+ if (success)
+ {
+ IsMidiConnected = true;
+ StatusMessage = $"✓ Reconnected to {_midiService?.CurrentDevice?.Name}";
+ Console.WriteLine($"[Reconnect] Successfully reconnected, restoring LED states");
+
+ // Update the selected device dropdown to reflect the reconnected device
+ if (_midiService?.CurrentDevice != null)
+ {
+ var reconnectedDevice = AvailableMidiDevices
+ .FirstOrDefault(d => string.Equals(d.Name, _midiService.CurrentDevice.Name, StringComparison.OrdinalIgnoreCase));
+ if (reconnectedDevice != null)
+ {
+ SelectedMidiDevice = reconnectedDevice;
+ }
+ }
+
+ // Restore LED states to reflect current channel mute/solo states
+ RestoreAllLedStates();
+ }
+ else
+ {
+ StatusMessage = "⚠ Reconnecting to MIDI device...";
+ }
+ }
+
  private void OnMasterMuteChanged(object? sender, MasterMuteChangedEventArgs e)
  {
  // Ensure we run UI updates on the UI thread
@@ -2279,6 +2339,13 @@ public partial class MainWindowViewModel : ViewModelBase
  {
  if (_audioSessionManager == null) return;
 
+ if (channel.IntendedAssignments.Any(r => r.SessionId == "unmapped_apps"))
+ {
+ var mappedNames = GetMappedProcessNames();
+ _audioSessionManager.ApplyMuteToUnmappedApplications(isMuted, mappedNames);
+ }
+ else
+ {
  foreach (var session in channel.AssignedSessions)
  {
  // During solo operations, don't mute system devices (master, input, output)
@@ -2292,6 +2359,7 @@ public partial class MainWindowViewModel : ViewModelBase
  }
 
  _audioSessionManager.SetSessionMute(session.SessionId, isMuted);
+ }
  }
  }
 
@@ -2321,6 +2389,21 @@ public partial class MainWindowViewModel : ViewModelBase
  }
 
  // Apply the mute change
+ if (channel.IntendedAssignments.Any(r => r.SessionId == "unmapped_apps"))
+ {
+ var mappedNames = GetMappedProcessNames();
+ if (channel.IsMuted)
+ {
+ _audioSessionManager.ApplyMuteToUnmappedApplications(true, mappedNames);
+ }
+ else
+ {
+ // When unmuting, apply volume in one pass
+ _audioSessionManager.ApplyVolumeToUnmappedApplications(channel.Volume, false, mappedNames);
+ }
+ }
+ else
+ {
  foreach (var session in channel.AssignedSessions)
  {
  _audioSessionManager.SetSessionMute(session.SessionId, channel.IsMuted);
@@ -2331,6 +2414,7 @@ public partial class MainWindowViewModel : ViewModelBase
  if (!channel.IsMuted)
  {
  ApplyVolumeToSessions(channel);
+ }
  }
  }
  

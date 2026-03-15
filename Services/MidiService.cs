@@ -15,12 +15,22 @@ public class MidiService : IMidiService, IDisposable
     private int _errorCount;
     private const int MAX_ERRORS_BEFORE_DISCONNECT = 10;
 
+    // Reconnection state
+    private System.Timers.Timer? _reconnectTimer;
+    private string? _lastDeviceName;
+    private int _reconnectAttempts;
+    private bool _isReconnecting;
+    private const int RECONNECT_INITIAL_DELAY_MS = 2000;
+    private const int RECONNECT_MAX_DELAY_MS = 30000;
+    private const int RECONNECT_MAX_ATTEMPTS = 0; // 0 = unlimited
+
     public event EventHandler<MidiControlChangeEventArgs>? ControlChangeReceived;
     public event EventHandler<MidiNoteEventArgs>? NoteOnReceived;
     public event EventHandler<MidiNoteEventArgs>? NoteOffReceived;
     public event EventHandler<MidiPitchBendEventArgs>? PitchBendReceived;
     public event EventHandler<MidiDeviceEventArgs>? DeviceStateChanged;
     public event EventHandler<string>? ErrorOccurred;
+    public event EventHandler<bool>? ReconnectionAttempted;
 
     public bool IsConnected => _midiIn != null;
     public MidiDeviceInfo? CurrentDevice => _currentDevice;
@@ -58,6 +68,12 @@ public class MidiService : IMidiService, IDisposable
         {
             try
             {
+                // Stop any in-progress reconnection since we're connecting explicitly
+                if (!_isReconnecting)
+                {
+                    StopReconnection();
+                }
+
                 // Disconnect if already connected
                 if (_midiIn != null)
                 {
@@ -336,12 +352,152 @@ public class MidiService : IMidiService, IDisposable
         // If we've accumulated too many errors, the device is likely disconnected
         if (_errorCount >= MAX_ERRORS_BEFORE_DISCONNECT)
         {
-            Console.WriteLine($"Too many MIDI errors ({_errorCount}). Device may be disconnected. Please disconnect and reconnect.");
+            Console.WriteLine($"Too many MIDI errors ({_errorCount}). Device may be disconnected. Starting automatic reconnection...");
 
             System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
             {
-                ErrorOccurred?.Invoke(this, "MIDI device appears to be disconnected. Please disconnect and reconnect.");
+                ErrorOccurred?.Invoke(this, "MIDI device appears to be disconnected. Attempting automatic reconnection...");
             });
+
+            // Remember the device name before disconnecting
+            _lastDeviceName = _currentDevice?.Name;
+
+            // Disconnect the broken connection and start reconnection
+            Disconnect();
+            StartReconnection();
+        }
+    }
+
+    private void StartReconnection()
+    {
+        if (_isReconnecting || string.IsNullOrEmpty(_lastDeviceName))
+            return;
+
+        _isReconnecting = true;
+        _reconnectAttempts = 0;
+
+        Console.WriteLine($"[Reconnect] Will attempt to reconnect to '{_lastDeviceName}'");
+
+        _reconnectTimer?.Dispose();
+        _reconnectTimer = new System.Timers.Timer(RECONNECT_INITIAL_DELAY_MS);
+        _reconnectTimer.AutoReset = false;
+        _reconnectTimer.Elapsed += OnReconnectTimerElapsed;
+        _reconnectTimer.Start();
+    }
+
+    private void StopReconnection()
+    {
+        _isReconnecting = false;
+        _reconnectAttempts = 0;
+        _reconnectTimer?.Stop();
+        _reconnectTimer?.Dispose();
+        _reconnectTimer = null;
+    }
+
+    private async void OnReconnectTimerElapsed(object? sender, System.Timers.ElapsedEventArgs e)
+    {
+        if (!_isReconnecting || string.IsNullOrEmpty(_lastDeviceName))
+            return;
+
+        _reconnectAttempts++;
+        Console.WriteLine($"[Reconnect] Attempt {_reconnectAttempts} to reconnect to '{_lastDeviceName}'...");
+
+        try
+        {
+            // Scan for the device by name (device IDs can change after unplug/replug)
+            int deviceId = -1;
+            for (int i = 0; i < MidiIn.NumberOfDevices; i++)
+            {
+                try
+                {
+                    var caps = MidiIn.DeviceInfo(i);
+                    if (string.Equals(caps.ProductName, _lastDeviceName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        deviceId = i;
+                        break;
+                    }
+                }
+                catch
+                {
+                    // Device enumeration can fail for individual devices
+                }
+            }
+
+            if (deviceId >= 0)
+            {
+                bool success = await ConnectAsync(deviceId);
+
+                System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+                {
+                    ReconnectionAttempted?.Invoke(this, success);
+                });
+
+                if (success)
+                {
+                    Console.WriteLine($"[Reconnect] Successfully reconnected to '{_lastDeviceName}' (attempt {_reconnectAttempts})");
+                    StopReconnection();
+                    return;
+                }
+                else
+                {
+                    Console.WriteLine($"[Reconnect] Found device but failed to connect (attempt {_reconnectAttempts})");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"[Reconnect] Device '{_lastDeviceName}' not found (attempt {_reconnectAttempts})");
+
+                System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+                {
+                    ReconnectionAttempted?.Invoke(this, false);
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Reconnect] Error during reconnection attempt: {ex.Message}");
+        }
+
+        // Check if we've exceeded max attempts (0 = unlimited)
+        if (RECONNECT_MAX_ATTEMPTS > 0 && _reconnectAttempts >= RECONNECT_MAX_ATTEMPTS)
+        {
+            Console.WriteLine($"[Reconnect] Max reconnection attempts ({RECONNECT_MAX_ATTEMPTS}) reached. Giving up.");
+            StopReconnection();
+
+            System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+            {
+                ErrorOccurred?.Invoke(this, $"Failed to reconnect after {RECONNECT_MAX_ATTEMPTS} attempts. Please reconnect manually.");
+            });
+            return;
+        }
+
+        // Schedule next attempt with exponential backoff
+        int delay = Math.Min(
+            RECONNECT_INITIAL_DELAY_MS * (int)Math.Pow(2, Math.Min(_reconnectAttempts - 1, 10)),
+            RECONNECT_MAX_DELAY_MS);
+        Console.WriteLine($"[Reconnect] Next attempt in {delay}ms");
+
+        if (_reconnectTimer != null)
+        {
+            _reconnectTimer.Interval = delay;
+            _reconnectTimer.Start();
+        }
+    }
+
+    private void CheckSendErrorThreshold()
+    {
+        if (_errorCount >= MAX_ERRORS_BEFORE_DISCONNECT && !_isReconnecting)
+        {
+            Console.WriteLine($"[Send] Too many send errors ({_errorCount}). Starting automatic reconnection...");
+            _lastDeviceName = _currentDevice?.Name;
+
+            System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+            {
+                ErrorOccurred?.Invoke(this, "MIDI device appears to be disconnected. Attempting automatic reconnection...");
+            });
+
+            Disconnect();
+            StartReconnection();
         }
     }
 
@@ -363,6 +519,7 @@ public class MidiService : IMidiService, IDisposable
             {
                 ErrorOccurred?.Invoke(this, $"Error sending MIDI: {ex.Message}");
             });
+            CheckSendErrorThreshold();
         }
     }
 
@@ -384,6 +541,7 @@ public class MidiService : IMidiService, IDisposable
             {
                 ErrorOccurred?.Invoke(this, $"Error sending MIDI: {ex.Message}");
             });
+            CheckSendErrorThreshold();
         }
     }
 
@@ -405,6 +563,7 @@ public class MidiService : IMidiService, IDisposable
             {
                 ErrorOccurred?.Invoke(this, $"Error sending MIDI: {ex.Message}");
             });
+            CheckSendErrorThreshold();
         }
     }
 
@@ -426,11 +585,13 @@ public class MidiService : IMidiService, IDisposable
             {
                 ErrorOccurred?.Invoke(this, $"Error sending MIDI: {ex.Message}");
             });
+            CheckSendErrorThreshold();
         }
     }
 
     public void Dispose()
     {
+        StopReconnection();
         Disconnect();
     }
 }

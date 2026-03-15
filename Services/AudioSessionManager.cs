@@ -865,6 +865,112 @@ public class AudioSessionManager : IAudioSessionManager, IDisposable
         return 0f;
     }
 
+    // Throttling state for unmapped applications
+    private DateTime _lastUnmappedVolumeCall = DateTime.MinValue;
+    private float _lastUnmappedVolume = -1f;
+    private bool _lastUnmappedMuted;
+    private HashSet<string> _lastMappedApps = new(StringComparer.OrdinalIgnoreCase);
+
+    public void ApplyVolumeToUnmappedApplications(float volume, bool isMuted, HashSet<string> mappedProcessNames)
+    {
+        volume = Math.Clamp(volume, 0f, 1f);
+
+        var now = DateTime.Now;
+        var timeSinceLastCall = (now - _lastUnmappedVolumeCall).TotalMilliseconds;
+        var volumeChanged = Math.Abs(_lastUnmappedVolume - volume) > 0.005f;
+        var muteChanged = _lastUnmappedMuted != isMuted;
+        var appsChanged = !_lastMappedApps.SetEquals(mappedProcessNames);
+
+        // Skip if called too frequently with no meaningful change
+        if (timeSinceLastCall < 50 && !volumeChanged && !muteChanged && !appsChanged)
+        {
+            return;
+        }
+
+        _lastUnmappedVolumeCall = now;
+        _lastUnmappedVolume = volume;
+        _lastUnmappedMuted = isMuted;
+        _lastMappedApps = new HashSet<string>(mappedProcessNames, StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            using var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            var sessions = device.AudioSessionManager.Sessions;
+
+            for (int i = 0; i < sessions.Count; i++)
+            {
+                AudioSessionControl? session = null;
+                try
+                {
+                    session = sessions[i];
+                    int pid = (int)session.GetProcessID;
+                    if (pid < 100) continue;
+
+                    string procName = ProcessNameCache.GetProcessName(pid);
+                    string cleanedProcName = Path.GetFileNameWithoutExtension(procName).ToLowerInvariant();
+
+                    if (string.IsNullOrEmpty(cleanedProcName)) continue;
+
+                    // Skip if this process is mapped to another channel
+                    if (mappedProcessNames.Contains(cleanedProcName))
+                        continue;
+
+                    session.SimpleAudioVolume.Mute = isMuted;
+                    if (!isMuted)
+                        session.SimpleAudioVolume.Volume = volume;
+                }
+                catch { /* Skip invalid session */ }
+                finally
+                {
+                    session?.Dispose();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ApplyVolumeToUnmappedApplications] Error: {ex.Message}");
+        }
+    }
+
+    public void ApplyMuteToUnmappedApplications(bool isMuted, HashSet<string> mappedProcessNames)
+    {
+        try
+        {
+            using var device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            var sessions = device.AudioSessionManager.Sessions;
+
+            for (int i = 0; i < sessions.Count; i++)
+            {
+                AudioSessionControl? session = null;
+                try
+                {
+                    session = sessions[i];
+                    int pid = (int)session.GetProcessID;
+                    if (pid < 100) continue;
+
+                    string procName = ProcessNameCache.GetProcessName(pid);
+                    string cleanedProcName = Path.GetFileNameWithoutExtension(procName).ToLowerInvariant();
+
+                    if (string.IsNullOrEmpty(cleanedProcName)) continue;
+
+                    if (mappedProcessNames.Contains(cleanedProcName))
+                        continue;
+
+                    session.SimpleAudioVolume.Mute = isMuted;
+                }
+                catch { /* Skip invalid session */ }
+                finally
+                {
+                    session?.Dispose();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ApplyMuteToUnmappedApplications] Error: {ex.Message}");
+        }
+    }
+
     private bool IsProcessNameMatch(string processName, string targetName)
     {
         if (string.IsNullOrEmpty(processName) || string.IsNullOrEmpty(targetName))

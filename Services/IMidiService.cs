@@ -38,6 +38,12 @@ public interface IMidiService
     event EventHandler<string>? ErrorOccurred;
 
     /// <summary>
+    /// Event fired when an automatic reconnection is attempted.
+    /// The bool indicates whether the reconnection was successful.
+    /// </summary>
+    event EventHandler<bool>? ReconnectionAttempted;
+
+    /// <summary>
     /// Gets all available MIDI input devices
     /// </summary>
     List<MidiDeviceInfo> GetAvailableDevices();

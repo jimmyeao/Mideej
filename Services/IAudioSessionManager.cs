@@ -83,6 +83,18 @@ public interface IAudioSessionManager
     /// Sets the default recording device by session ID
     /// </summary>
     bool SetDefaultRecordingDevice(string sessionId);
+
+    /// <summary>
+    /// Applies volume to all application sessions that are NOT in the mapped set.
+    /// Uses a single audio session enumeration for efficiency.
+    /// </summary>
+    void ApplyVolumeToUnmappedApplications(float volume, bool isMuted, HashSet<string> mappedProcessNames);
+
+    /// <summary>
+    /// Applies mute state to all application sessions that are NOT in the mapped set.
+    /// Uses a single audio session enumeration for efficiency.
+    /// </summary>
+    void ApplyMuteToUnmappedApplications(bool isMuted, HashSet<string> mappedProcessNames);
 }
 
 /// <summary>
