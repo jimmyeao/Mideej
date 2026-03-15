@@ -45,6 +45,15 @@ public partial class SettingsViewModel : ViewModelBase
     };
 
     [ObservableProperty]
+    private bool _overlayEnabled;
+
+    [ObservableProperty]
+    private int _overlayTimeoutSeconds = 5;
+
+    [ObservableProperty]
+    private double _overlayOpacity = 0.85;
+
+    [ObservableProperty]
     private string _statusMessage = string.Empty;
 
     public ObservableCollection<ControllerPresetOption> ControllerPresets { get; } = new();
@@ -66,6 +75,9 @@ public partial class SettingsViewModel : ViewModelBase
         StartMinimized = mainViewModel.StartMinimized;
         FontSizeScale = mainViewModel.FontSizeScale;
         SelectedTheme = mainViewModel.SelectedTheme;
+        OverlayEnabled = mainViewModel.OverlayEnabled;
+        OverlayTimeoutSeconds = mainViewModel.OverlayTimeoutSeconds;
+        OverlayOpacity = mainViewModel.OverlayOpacity;
 
         // Set the selected font size index
         var matchingOption = FontSizeOptions.FirstOrDefault(o => Math.Abs(o.Scale - FontSizeScale) < 0.01);
@@ -291,6 +303,9 @@ public partial class SettingsViewModel : ViewModelBase
         _mainViewModel.StartWithWindows = StartWithWindows;
         _mainViewModel.StartMinimized = StartMinimized;
         _mainViewModel.FontSizeScale = FontSizeScale;
+        _mainViewModel.OverlayEnabled = OverlayEnabled;
+        _mainViewModel.OverlayTimeoutSeconds = OverlayTimeoutSeconds;
+        _mainViewModel.OverlayOpacity = OverlayOpacity;
         if (SelectedTheme != null)
         {
             _mainViewModel.SelectedTheme = SelectedTheme;

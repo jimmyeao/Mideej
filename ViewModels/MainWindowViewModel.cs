@@ -89,6 +89,24 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public event EventHandler? FontSizeChanged;
 
+    // Overlay settings
+    [ObservableProperty]
+    private bool _overlayEnabled;
+
+    [ObservableProperty]
+    private int _overlayTimeoutSeconds = 5;
+
+    [ObservableProperty]
+    private double _overlayOpacity = 0.85;
+
+    [ObservableProperty]
+    private double _overlayX = -1;
+
+    [ObservableProperty]
+    private double _overlayY = -1;
+
+    private Views.VolumeOverlay? _volumeOverlay;
+
     [ObservableProperty]
     private double _minWindowWidth =600;
 
@@ -350,6 +368,7 @@ public partial class MainWindowViewModel : ViewModelBase
  mw.Closing += (s, e) =>
  {
  try { TurnOffAllLeds(); } catch { }
+ try { CloseOverlay(); } catch { }
  };
  }
  }));
@@ -937,6 +956,7 @@ public partial class MainWindowViewModel : ViewModelBase
  if (sender is ChannelViewModel channel)
  {
  ApplyVolumeToSessions(channel);
+ ShowVolumeOverlay();
  }
  }
 
@@ -945,6 +965,7 @@ public partial class MainWindowViewModel : ViewModelBase
  if (sender is ChannelViewModel channel)
  {
  ApplyMuteToSessions(channel);
+ ShowVolumeOverlay();
  SendMuteLedFeedback(channel, channel.IsMuted);
  }
  }
@@ -1700,6 +1721,94 @@ public partial class MainWindowViewModel : ViewModelBase
  _midiService?.SendControlChange(midiChannel, controller, value);
  }
 
+ // --- Volume Overlay ---
+
+ private void ShowVolumeOverlay()
+ {
+ if (!OverlayEnabled) return;
+
+ EnsureOverlayCreated();
+ if (_volumeOverlay == null) return;
+
+ var (volumes, labels, muted) = GetOverlayData();
+ _volumeOverlay.ShowVolumes(volumes, labels, muted);
+ }
+
+ private void EnsureOverlayCreated()
+ {
+ if (_volumeOverlay != null) return;
+
+ _volumeOverlay = new Views.VolumeOverlay();
+ _volumeOverlay.SetTimeout(OverlayTimeoutSeconds);
+ _volumeOverlay.SetOverlayOpacity(OverlayOpacity);
+
+ // Set position if saved
+ if (OverlayX >= 0 && OverlayY >= 0)
+ {
+ _volumeOverlay.SetPosition(OverlayX, OverlayY);
+ }
+ else
+ {
+ // Default: bottom-center of the primary screen
+ var screenWidth = SystemParameters.PrimaryScreenWidth;
+ var screenHeight = SystemParameters.PrimaryScreenHeight;
+ _volumeOverlay.SetPosition(
+ (screenWidth - _volumeOverlay.Width) / 2,
+ screenHeight - _volumeOverlay.Height - 80);
+ }
+
+ // Persist position when dragged
+ _volumeOverlay.PositionChanged += (s, p) =>
+ {
+ OverlayX = p.X;
+ OverlayY = p.Y;
+ };
+
+ // Register the live-value callback so the refresh timer always gets fresh data
+ _volumeOverlay.GetCurrentValues = GetOverlayData;
+ }
+
+ private (List<float> volumes, List<string> labels, List<bool> muted) GetOverlayData()
+ {
+ var volumes = new List<float>();
+ var labels = new List<string>();
+ var muted = new List<bool>();
+
+ foreach (var ch in Channels)
+ {
+ volumes.Add(ch.Volume);
+ labels.Add(ch.Name);
+ muted.Add(ch.IsMuted);
+ }
+
+ return (volumes, labels, muted);
+ }
+
+ partial void OnOverlayEnabledChanged(bool value)
+ {
+ if (!value && _volumeOverlay != null)
+ {
+ _volumeOverlay.Close();
+ _volumeOverlay = null;
+ }
+ }
+
+ partial void OnOverlayTimeoutSecondsChanged(int value)
+ {
+ _volumeOverlay?.SetTimeout(value);
+ }
+
+ partial void OnOverlayOpacityChanged(double value)
+ {
+ _volumeOverlay?.SetOverlayOpacity(value);
+ }
+
+ public void CloseOverlay()
+ {
+ _volumeOverlay?.Close();
+ _volumeOverlay = null;
+ }
+
  private void ApplyVolumeToSessions(ChannelViewModel channel)
  {
  if (_audioSessionManager == null) return;
@@ -1934,6 +2043,13 @@ public partial class MainWindowViewModel : ViewModelBase
  StartMinimized = settings.StartMinimized;
  FontSizeScale = settings.FontSizeScale;
 
+ // Overlay settings
+ OverlayEnabled = settings.OverlayEnabled;
+ OverlayTimeoutSeconds = settings.OverlayTimeoutSeconds;
+ OverlayOpacity = settings.OverlayOpacity;
+ OverlayX = settings.OverlayX;
+ OverlayY = settings.OverlayY;
+
  // Scrub unsupported CycleSession mappings
  int removedCycle = settings.MidiMappings.RemoveAll(m => m.ControlType == MidiControlType.CycleSession);
  if (removedCycle >0)
@@ -2062,6 +2178,13 @@ public partial class MainWindowViewModel : ViewModelBase
  settings.StartWithWindows = StartWithWindows;
  settings.StartMinimized = StartMinimized;
  settings.FontSizeScale = FontSizeScale;
+
+ // Overlay settings
+ settings.OverlayEnabled = OverlayEnabled;
+ settings.OverlayTimeoutSeconds = OverlayTimeoutSeconds;
+ settings.OverlayOpacity = OverlayOpacity;
+ settings.OverlayX = OverlayX;
+ settings.OverlayY = OverlayY;
 
  Console.WriteLine($"[Config Sync] Synced {settings.Channels.Count} channels, {settings.MidiMappings.Count} mappings to CurrentSettings");
  }

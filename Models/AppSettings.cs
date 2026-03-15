@@ -84,6 +84,31 @@ public class AppSettings
     /// Font size scale (0.8 = Small, 1.0 = Normal, 1.2 = Large, 1.4 = Extra Large)
     /// </summary>
     public double FontSizeScale { get; set; } = 1.0;
+
+    /// <summary>
+    /// Whether the volume overlay popup is enabled
+    /// </summary>
+    public bool OverlayEnabled { get; set; }
+
+    /// <summary>
+    /// Overlay auto-close timeout in seconds (0 = always visible)
+    /// </summary>
+    public int OverlayTimeoutSeconds { get; set; } = 5;
+
+    /// <summary>
+    /// Overlay opacity (0.0 to 1.0)
+    /// </summary>
+    public double OverlayOpacity { get; set; } = 0.85;
+
+    /// <summary>
+    /// Overlay X position (persisted)
+    /// </summary>
+    public double OverlayX { get; set; } = -1;
+
+    /// <summary>
+    /// Overlay Y position (persisted)
+    /// </summary>
+    public double OverlayY { get; set; } = -1;
 }
 
 /// <summary>
