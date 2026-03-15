@@ -31,6 +31,9 @@ public partial class VolumeOverlay : Window
     private List<float> _volumes = new();
     private List<string> _labels = new();
     private List<bool> _muted = new();
+    private List<bool> _soloed = new();
+    private List<bool> _isOutputDevice = new();
+    private bool _anySoloed;
 
     // Auto-close timer
     private DispatcherTimer? _autoCloseTimer;
@@ -55,7 +58,7 @@ public partial class VolumeOverlay : Window
     public event EventHandler<Point>? PositionChanged;
 
     // Callback to fetch live volume values (guards against stale data)
-    public Func<(List<float> volumes, List<string> labels, List<bool> muted)>? GetCurrentValues { get; set; }
+    public Func<(List<float> volumes, List<string> labels, List<bool> muted, List<bool> soloed, List<bool> isOutputDevice)>? GetCurrentValues { get; set; }
 
     public VolumeOverlay()
     {
@@ -147,7 +150,8 @@ public partial class VolumeOverlay : Window
     /// Update the overlay with new volume data and show it.
     /// Throttled to ~60fps. Restarts auto-close timer on each call.
     /// </summary>
-    public void ShowVolumes(List<float> volumes, List<string> labels, List<bool> muted)
+    public void ShowVolumes(List<float> volumes, List<string> labels, List<bool> muted,
+        List<bool>? soloed = null, List<bool>? isOutputDevice = null)
     {
         // Throttle updates to prevent excessive rendering
         var now = DateTime.Now;
@@ -159,6 +163,9 @@ public partial class VolumeOverlay : Window
         _volumes = new List<float>(volumes);
         _labels = new List<string>(labels);
         _muted = new List<bool>(muted);
+        _soloed = soloed != null ? new List<bool>(soloed) : new List<bool>();
+        _isOutputDevice = isOutputDevice != null ? new List<bool>(isOutputDevice) : new List<bool>();
+        _anySoloed = _soloed.Any(s => s);
 
         // Resize window to fit content
         UpdateWindowSize();
@@ -270,18 +277,23 @@ public partial class VolumeOverlay : Window
 
         try
         {
-            var (volumes, labels, muted) = GetCurrentValues();
+            var (volumes, labels, muted, soloed, isOutputDevice) = GetCurrentValues();
 
             if (volumes.Count == 0)
                 return;
 
             // Check if values actually changed using adaptive tolerance
-            if (!HasValuesChanged(volumes, muted))
+            bool soloChanged = _anySoloed != soloed.Any(s => s) ||
+                               !_soloed.SequenceEqual(soloed);
+            if (!HasValuesChanged(volumes, muted) && !soloChanged)
                 return;
 
             _volumes = new List<float>(volumes);
             _labels = new List<string>(labels);
             _muted = new List<bool>(muted);
+            _soloed = new List<bool>(soloed);
+            _isOutputDevice = new List<bool>(isOutputDevice);
+            _anySoloed = _soloed.Any(s => s);
 
             OverlayCanvas.InvalidateVisual();
         }
@@ -351,8 +363,17 @@ public partial class VolumeOverlay : Window
             float centerX = 20 + cellWidth * i + cellWidth / 2f;
             float volume = Math.Clamp(_volumes[i], 0f, 1f);
             bool isMuted = i < _muted.Count && _muted[i];
+            bool isSoloed = i < _soloed.Count && _soloed[i];
+            bool isOutput = i < _isOutputDevice.Count && _isOutputDevice[i];
             string label = i < _labels.Count ? _labels[i] : $"Ch {i + 1}";
             int percent = (int)(volume * 100);
+
+            // Determine if this channel should be greyed out
+            // Grey out when solo is active, this channel isn't soloed, and it's not an output device
+            bool isGreyedOut = _anySoloed && !isSoloed && !isOutput;
+
+            // Overall alpha for greyed-out channels
+            byte channelAlpha = isGreyedOut ? (byte)80 : (byte)255;
 
             // Draw arc background (gray ring)
             var arcRect = new SKRect(
@@ -362,15 +383,31 @@ public partial class VolumeOverlay : Window
             float startAngle = 135;
             float sweepAngle = 270;
 
-            canvas.DrawArc(arcRect, startAngle, sweepAngle, false, _arcBackgroundPaint);
+            using var arcBgPaint = new SKPaint
+            {
+                Color = isGreyedOut ? new SKColor(60, 60, 60, 50) : new SKColor(60, 60, 60),
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 6,
+                StrokeCap = SKStrokeCap.Round,
+                IsAntialias = true
+            };
+            canvas.DrawArc(arcRect, startAngle, sweepAngle, false, arcBgPaint);
 
             // Draw volume arc (colored)
             if (!isMuted && volume > 0.001f)
             {
                 float valueSweep = sweepAngle * volume;
+                SKColor arcColor;
+                if (isSoloed)
+                    arcColor = new SKColor(60, 140, 255); // Blue for soloed channel
+                else if (isGreyedOut)
+                    arcColor = new SKColor(100, 100, 100, channelAlpha); // Dim grey
+                else
+                    arcColor = GetVolumeColor(volume);
+
                 using var arcPaint = new SKPaint
                 {
-                    Color = GetVolumeColor(volume),
+                    Color = arcColor,
                     Style = SKPaintStyle.Stroke,
                     StrokeWidth = 6,
                     StrokeCap = SKStrokeCap.Round,
@@ -382,17 +419,25 @@ public partial class VolumeOverlay : Window
             // Draw percentage text in center of arc
             if (isMuted)
             {
+                _mutedPaint.Color = isGreyedOut
+                    ? new SKColor(255, 60, 60, channelAlpha)
+                    : new SKColor(255, 60, 60);
                 canvas.DrawText("MUTE", centerX, centerY + 2, _mutedPaint);
             }
             else
             {
-                _valueTextPaint.Color = SKColors.White;
+                _valueTextPaint.Color = isGreyedOut
+                    ? new SKColor(255, 255, 255, channelAlpha)
+                    : SKColors.White;
                 canvas.DrawText($"{percent}%", centerX, centerY + 2, _valueTextPaint);
             }
 
             // Draw channel label below arc
             string truncatedLabel = TruncateLabel(label, cellWidth - 8);
             _textPaint.TextAlign = SKTextAlign.Center;
+            _textPaint.Color = isGreyedOut
+                ? new SKColor(255, 255, 255, channelAlpha)
+                : SKColors.White;
             canvas.DrawText(truncatedLabel, centerX, height - 10, _textPaint);
         }
     }

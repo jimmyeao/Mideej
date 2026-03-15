@@ -1022,6 +1022,7 @@ public partial class MainWindowViewModel : ViewModelBase
  }
 
  ApplySoloLogic();
+ ShowVolumeOverlay();
  }
  private void SendMuteLedFeedback(ChannelViewModel channel, bool isOn)
  {
@@ -1730,8 +1731,8 @@ public partial class MainWindowViewModel : ViewModelBase
  EnsureOverlayCreated();
  if (_volumeOverlay == null) return;
 
- var (volumes, labels, muted) = GetOverlayData();
- _volumeOverlay.ShowVolumes(volumes, labels, muted);
+ var (volumes, labels, muted, soloed, isOutputDevice) = GetOverlayData();
+ _volumeOverlay.ShowVolumes(volumes, labels, muted, soloed, isOutputDevice);
  }
 
  private void EnsureOverlayCreated()
@@ -1768,20 +1769,27 @@ public partial class MainWindowViewModel : ViewModelBase
  _volumeOverlay.GetCurrentValues = GetOverlayData;
  }
 
- private (List<float> volumes, List<string> labels, List<bool> muted) GetOverlayData()
+ private (List<float> volumes, List<string> labels, List<bool> muted, List<bool> soloed, List<bool> isOutputDevice) GetOverlayData()
  {
  var volumes = new List<float>();
  var labels = new List<string>();
  var muted = new List<bool>();
+ var soloed = new List<bool>();
+ var isOutputDevice = new List<bool>();
 
  foreach (var ch in Channels)
  {
  volumes.Add(ch.Volume);
  labels.Add(ch.Name);
  muted.Add(ch.IsMuted);
+ soloed.Add(ch.IsSoloed);
+ isOutputDevice.Add(ch.AssignedSessions.Any(s =>
+ s.SessionId == "master_output" ||
+ s.SessionId.StartsWith("output_") ||
+ s.SessionId.StartsWith("input_")));
  }
 
- return (volumes, labels, muted);
+ return (volumes, labels, muted, soloed, isOutputDevice);
  }
 
  partial void OnOverlayEnabledChanged(bool value)
